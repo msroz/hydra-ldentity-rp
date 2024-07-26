@@ -1,0 +1,69 @@
+version: "3.7"
+services:
+  hydra:
+    image: oryd/hydra:v2.2.0-rc.3
+    ports:
+      - "4444:4444" # Public port
+      - "4445:4445" # Admin port
+    command: serve -c /etc/config/hydra/hydra.yml all --dev
+    volumes:
+      - type: bind
+        source: ./hydra/
+        target: /etc/config/hydra
+    environment:
+      - DSN=mysql://root:secret@tcp(mysqld:3306)/mysql?max_conns=20&max_idle_conns=4
+    restart: unless-stopped
+    depends_on:
+      - hydra-migrate
+    networks:
+      - hydra-identity-rp-network
+  hydra-migrate:
+    image: oryd/hydra:v2.2.0-rc.3
+    environment:
+      - DSN=mysql://root:secret@tcp(mysqld:3306)/mysql?max_conns=20&max_idle_conns=4
+    command: migrate -c /etc/config/hydra/hydra.yml sql -e --yes
+    volumes:
+      - type: bind
+        source: ./hydra/
+        target: /etc/config/hydra
+    restart: on-failure
+    networks:
+      - hydra-identity-rp-network
+  mysqld:
+    image: mysql:8.0.26
+    platform: linux/amd64
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+    networks:
+      - hydra-identity-rp-network
+  idp:
+    build:
+      context: idp
+      dockerfile: ./Dockerfile
+    command: air -c ./air.toml
+    environment:
+      - HYDRA_ADMIN_URL=http://hydra:4445
+    ports:
+      - "3000:3000"
+    volumes:
+      - "./idp:/app"
+    networks:
+      - hydra-identity-rp-network
+  rp:
+    build:
+      context: rp
+      dockerfile: ./Dockerfile
+    command: air -c ./air.toml
+    environment:
+      - CLIENT_ID=8d14540d-55b7-4d55-8eaf-cf1392dbbcd9
+      - CLIENT_SECRET=YpSNt87xkAYzOzkuU3Qphuu8as # This is a secret, do not expose it in production
+    ports:
+      - "5555:5555"
+    volumes:
+      - "./rp:/app"
+    networks:
+      - hydra-identity-rp-network
+networks:
+  hydra-identity-rp-network:

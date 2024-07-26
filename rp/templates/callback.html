@@ -1,0 +1,27 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RP | Callback after Token Request</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background-color: #E0E0E0;
+            color: #333;
+            margin: 50px;
+            padding: 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>RP | Callback after Token Request</h1>
+    <ul>
+        <li>Access Token: <code>{{ .AccessToken }}</code></li>
+        <li>Refresh Token: <code>{{ .RefreshToken }}</code></li>
+        <li>Expires in: <code>{{ .Expiry }}</code></li>
+        <li>ID Token: <code>{{ .IDToken }}</code></li>
+        <li>Token: <code>{{ .Token }}</code></li>
+    </ul>
+</body>
+</html>

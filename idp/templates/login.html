@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OP | Login</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background-color: #F0F0F0;
+            color: #333;
+            margin: 50px;
+            padding: 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="login-title">OP | Login</h1>
+    {{ if .Error }}
+        <p>{{ .Error }}</p>
+    {{ end }}
+    <form action="{{ .Action }}" method="POST">
+        <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
+        <input type="hidden" name="challenge" value="{{ .Challenge }}">
+        <table>
+            <tr>
+                <td>
+                    <input type="email" id="email" name="email" value="{{ if .Hint }}{{ .Hint }}{{ else }}foo@bar.com{{ end }}" placeholder="foo@bar.com">
+                </td>
+                <td>(it's "foo@bar.com")</td>
+            </tr>
+            <tr>
+                <td>
+                    <input type="password" id="password" name="password" value="foobar">
+                </td>
+                <td>(it's "foobar")</td>
+            </tr>
+        </table>
+        <input type="checkbox" id="remember" name="remember" value="true">
+        <label for="remember">Remember me</label>
+        <br>
+        <input type="submit" id="accept" name="submit" value="Log in">
+        <input type="submit" id="reject" name="submit" value="Deny access">
+    </form>
+</body>
+</html>

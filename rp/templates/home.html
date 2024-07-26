@@ -1,0 +1,26 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RP | Home</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background-color: #E0E0E0;
+            color: #333;
+            margin: 50px;
+            padding: 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>RP | Home</h1>
+    <ul>
+        <li>Client ID: <code>{{ .ClientID }}</code></li>
+        <li>Client Secret: <code>{{ .ClientSecret }}</code></li>
+    </ul>
+
+    <p><a href="/initiate">Move to Initiate Authorize Request Page</a></p>
+</body>
+</html>

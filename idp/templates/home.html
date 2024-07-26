@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OP | Root</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background-color: #F0F0F0;
+            color: #333;
+            margin: 50px;
+            padding: 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>OP | Root</h1>
+    {{ if .Error }}
+        <p>{{ .Error }}</p>
+    {{ end }}
+    <div>
+        <ul>
+            <li>GET /login</li>
+            <li>POST /login</li>
+            <li>GET /consent</li>
+            <li>POST /consent</li>
+            <li>GET /logout</li>
+            <li>POST /logout</li>
+        </ul>
+    </div>
+    <p>
+        Click <a href="{{.LoginURL}}">here</a> to perform the exemplary authorize code flow.
+    </p>
+    <p>
+        {{ if .Session }}
+            Session exists: {{ .Session }}
+        {{ end }}
+    </p>
+</body>
+</html>
