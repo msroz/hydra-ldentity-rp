@@ -1,0 +1,25 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RP | Logout</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background-color: #E0E0E0;
+            color: #333;
+            margin: 50px;
+            padding: 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>RP | Initiate Logout Request</h1>
+    {{ if .Error }}
+        <p>{{ .Error }}</p>
+    {{ else }}
+        <p><a href="{{ .LogoutURL }}">Initiate Logout Request</a></p>
+    {{ end }}
+</body>
+</html>

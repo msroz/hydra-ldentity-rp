@@ -22,5 +22,17 @@
     </ul>
 
     <p><a href="/initiate">Move to Initiate Authorize Request Page</a></p>
+
+    <h2>UserStore</h2>
+    <ul>
+        {{ if eq (len .Users) 0 }}
+            <li>No Users Found.</li>
+        {{ end }}
+        {{ range .Users }}
+            <li>
+                <a href="/logout?id={{ .ID }}">Move to Initiate Logout Request Page(ID: {{ .ID }})</a></p>
+            </li>
+        {{ end }}
+    </ul>
 </body>
 </html>
