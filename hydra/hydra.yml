@@ -8,6 +8,7 @@ urls:
   consent: http://127.0.0.1:3000/consent
   login: http://127.0.0.1:3000/login
   logout: http://127.0.0.1:3000/logout
+  registration: http://127.0.0.1:3000/register
 
 secrets:
   system:

@@ -21,6 +21,6 @@
 go.work
 go.work.sum
 
-rp/tmp/main
-idp/tmp/main
+rp/tmp/
+idp/tmp/
 
