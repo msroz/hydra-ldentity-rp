@@ -37,6 +37,8 @@ func main() {
 	r := chi.NewRouter()
 
 	r.Get("/", home)
+	r.Get("/register", getRegisterPage)
+	r.Post("/register", register)
 	r.Get("/login", getLoginPage)
 	r.Post("/login", login)
 	r.Get("/consent", getConsentPage)
@@ -72,7 +74,97 @@ func home(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ログイン画面表示
+// ユーザー登録画面表示( GET /register )
+func getRegisterPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := r.URL.Query()
+	challenge := query.Get("login_challenge")
+	if challenge == "" {
+		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
+		return
+	}
+	hydraClient := hydraClient()
+
+	respGetLoginReq, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(ctx).LoginChallenge(challenge).Execute()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	_ = respGetLoginReq
+
+	csrfToken := csrf.Token(r)
+	registerURL := url.URL{
+		Scheme: "http",
+		Host:   r.Host,
+		Path:   "/register",
+	}
+
+	renderTemplate(w, "register.html", map[string]interface{}{
+		"Challenge": challenge,
+		"CSRFToken": csrfToken,
+		"Action":    registerURL.String(),
+	})
+}
+
+// ユーザー登録処理( POST /register )
+func register(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	challenge := r.FormValue("challenge")
+	if challenge == "" {
+		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
+		return
+	}
+	// TODO: check CsrfToken
+
+	hydraClient := hydraClient()
+
+	// Check if the user decided to accept or reject the consent request
+	if r.FormValue("submit") == "Deny access" {
+		hydraReq := hydra.NewRejectOAuth2Request()
+		respRejectLoginReq, _, err := hydraClient.OAuth2API.RejectOAuth2LoginRequest(ctx).LoginChallenge(challenge).RejectOAuth2Request(*hydraReq).Execute()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to reject login request: %v", err), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, respRejectLoginReq.RedirectTo, http.StatusFound)
+		return
+	}
+
+	// Validate user credentials (dummy check for example)
+	email := r.FormValue("email")
+	password := r.FormValue("password")
+
+	// TODO: Save User
+	_, _ = password, email
+
+	// TODO: Issue login session (hydra sessionとの棲み分け?)
+	/*
+		_, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(r.Context()).LoginChallenge(challenge).Execute()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
+			return
+		}
+	*/
+
+	// User authenticated, accept the login request
+	hydraReq := hydra.NewAcceptOAuth2LoginRequest(email) // email is the subject
+	hydraReq.IdentityProviderSessionId = pointer("hoge")
+	// remember trueにすると、このあとの認可リクエストでory_hydra_session_dev セッションがSet-Cookieされる
+	hydraReq.Remember = pointer(true)
+	rememberFor := int64(3600)
+	hydraReq.RememberFor = &rememberFor
+	hydraReq.Acr = pointer("fack_acr")
+
+	respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to accept login request: %v", err), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
+}
+
+// ログイン画面表示( GET /login )
 func getLoginPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
@@ -117,12 +209,12 @@ func getLoginPage(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "login.html", map[string]interface{}{
 		"Challenge": challenge,
 		"CSRFToken": csrfToken,
-		"LoginURL":  loginURL.String(),
+		"Action":    loginURL.String(),
 		"Hint":      hint,
 	})
 }
 
-// ログイン処理
+// ログイン処理( POST /login )
 func login(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	challenge := r.FormValue("challenge")
@@ -184,7 +276,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	hydraReq.Remember = pointer(r.FormValue("remember") == "true")
 	rememberFor := int64(3600)
 	hydraReq.RememberFor = &rememberFor
-	hydraReq.Acr = pointer("face_acr")
+	hydraReq.Acr = pointer("fack_acr")
 
 	respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
 	if err != nil {
@@ -194,7 +286,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
 }
 
-// 同意画面表示
+// 同意画面表示( GET /consent )
 func getConsentPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
@@ -206,7 +298,6 @@ func getConsentPage(w http.ResponseWriter, r *http.Request) {
 
 	hydraClient := hydraClient()
 
-	// Fetch consent request information from ORY Hydra
 	consentRequest, _, err := hydraClient.OAuth2API.GetOAuth2ConsentRequest(ctx).ConsentChallenge(challenge).Execute()
 	if err != nil {
 		http.Error(w, "Failed to fetch consent request information", http.StatusInternalServerError)
@@ -232,7 +323,7 @@ func getConsentPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// 同意処理
+// 同意処理( POST /consent )
 func consent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	r.ParseForm()
@@ -263,34 +354,22 @@ func consent(w http.ResponseWriter, r *http.Request) {
 		grantScope = []string{r.FormValue("grant_scope")}
 	}
 
-	// The session allows us to set session data for id and access tokens
-	// NOTE: DBのhydra_oauth2_flow.(session_access_token|session_id_token) にそれぞれ保存される
-	// session.IdTokenのclaimsはID Tokenのpayloadにも含まれる
-	/*
-		$ curlie -X GET -H "Authorization: Bearer ory_at_fHInGUwUOWxZyHtzxnSJd8tKbYSNNTEZoRMwma2_FlI.Dr_eB53DT0PSMx7ki3dVmyvNlU2fLmRAp3KSy_JsQcE" http://localhost:4444/userinfo
-		HTTP/1.1 200 OK
-		Cache-Control: private, no-cache, no-store, must-revalidate
-		Content-Type: application/json; charset=utf-8
-		Date: Thu, 25 Jul 2024 06:45:16 GMT
-		Content-Length: 336
+	consentRequest, _, err := hydraClient.OAuth2API.GetOAuth2ConsentRequest(ctx).ConsentChallenge(challenge).Execute()
+	if err != nil {
+		http.Error(w, "Failed to fetch consent request information", http.StatusInternalServerError)
+		return
+	}
 
-		{
-		    "acr": "face_acr",
-		    "aud": [
-		        "89657dc9-8dbc-4c4b-9d7f-e7fac531fb8e"
-		    ],
-		    "auth_time": 1721888706,
-		    "baz": "bar",
-		    "family_name": "Doe",
-		    "given_name": "John",
-		    "iat": 1721888711,
-		    "iss": "http://127.0.0.1:4444",
-		    "phone_number": "08012345678",
-		    "phone_number_verified": true,
-		    "rat": 1721888701,
-		    "sub": "d91d6630a562a8f3bd5d217eb39e05747e2a4b8369490cf02fcf6d325a10e609"
-		}
-	*/
+	// client.metadata(JSON) に独自データを詰め込めるので、その値を参照して処理分岐させることができる
+	clientMeta := consentRequest.Client.GetMetadata()
+	rawUserID := clientMeta["raw_user_id"]
+	includeRawUserID := false
+	if rawUserID != nil {
+		includeRawUserID = rawUserID.(bool)
+	}
+
+	// NOTE: DBのhydra_oauth2_flow.(session_access_token|session_id_token) にそれぞれ保存される
+	// session.IdTokenのclaimsはID TokenのpayloadにもUserinfo Responseにも含まれる
 	session := hydra.AcceptOAuth2ConsentRequestSession{
 		AccessToken: map[string]interface{}{
 			"foo": "bar",
@@ -301,19 +380,33 @@ func consent(w http.ResponseWriter, r *http.Request) {
 			"phone_number_verified": true,
 			"family_name":           "Doe",
 			"given_name":            "John",
+			"ext": map[string]interface{}{
+				"hoge": "fuga",
+				"piyo": []string{"a", "b", "c"},
+			},
 		},
 	}
-
-	// Let's fetch the consent request again to be able to set `grantAccessTokenAudience` properly.
-	consentRequest, _, err := hydraClient.OAuth2API.GetOAuth2ConsentRequest(ctx).ConsentChallenge(challenge).Execute()
-	if err != nil {
-		http.Error(w, "Failed to fetch consent request information", http.StatusInternalServerError)
-		return
+	if includeRawUserID {
+		session.SetIdToken(
+			map[string]interface{}{
+				"baz":                   "bar",
+				"phone_number":          "08012345678",
+				"phone_number_verified": true,
+				"family_name":           "Doe",
+				"given_name":            "John",
+				"ext": map[string]interface{}{
+					"hoge": "fuga",
+					"piyo": []string{"a", "b", "c"},
+				},
+				"raw_user_id": "1234567890", // たとえば、DBのraw ID を突っ込むとか
+			},
+		)
 	}
 
 	remember, _ := strconv.ParseBool(r.FormValue("remember"))
 	rememberFor := int64(3600)
 	body, _, err := hydraClient.OAuth2API.AcceptOAuth2ConsentRequest(ctx).ConsentChallenge(challenge).AcceptOAuth2ConsentRequest(hydra.AcceptOAuth2ConsentRequest{
+		Context:                  map[string]interface{}{"foo": "bar"},
 		GrantScope:               grantScope,
 		Session:                  &session,
 		GrantAccessTokenAudience: consentRequest.RequestedAccessTokenAudience,
@@ -328,7 +421,7 @@ func consent(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, body.RedirectTo, http.StatusFound)
 }
 
-// ログアウト画面表示
+// ログアウト画面表示( GET /logout )
 func getLogoutPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	challenge := r.URL.Query().Get("logout_challenge")
@@ -354,7 +447,7 @@ func getLogoutPage(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// ログアウト処理
+// ログアウト処理( POST /logout )
 func logout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	r.ParseForm()

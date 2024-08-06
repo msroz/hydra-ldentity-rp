@@ -154,16 +154,37 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 	//   code_verifier, code_challenge, code_challenge_method を生成
 	//   認可Requestにcode_challengeとcode_challenge_methodを追加
 
-	authZRequestURL := conf.AuthCodeURL(
+	authZReqWithPromptLoginURL := conf.AuthCodeURL(
 		string(state),
 		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("nonce", string(nonce)),
-		oauth2.SetAuthURLParam("prompt", ""),
+		oauth2.SetAuthURLParam("prompt", "login"),
 		oauth2.SetAuthURLParam("max_age", "0"),
+		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
+	)
+
+	authZReqWithPromptRegistrationURL := conf.AuthCodeURL(
+		string(state),
+		oauth2.SetAuthURLParam("audience", ""),
+		oauth2.SetAuthURLParam("nonce", string(nonce)),
+		oauth2.SetAuthURLParam("prompt", "registration"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
+	)
+
+	authZReqWithPromptNoneURL := conf.AuthCodeURL(
+		string(state),
+		oauth2.SetAuthURLParam("audience", ""),
+		oauth2.SetAuthURLParam("nonce", string(nonce)),
+		oauth2.SetAuthURLParam("prompt", "none"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
 	)
 
 	renderTemplate(w, "initiate.html", map[string]interface{}{
-		"AuthZRequestURL": authZRequestURL,
+		"AuthZReqWithPromptLoginURL":        authZReqWithPromptLoginURL,
+		"AuthZReqWithPromptRegistrationURL": authZReqWithPromptRegistrationURL,
+		"AuthZReqWithPromptNoneURL":         authZReqWithPromptNoneURL,
 	})
 
 }
