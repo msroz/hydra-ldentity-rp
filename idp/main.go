@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"idp/model"
 	"io"
 	"log"
 	"net/http"
@@ -12,17 +13,20 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/csrf"
+	"github.com/gorilla/sessions"
 	hydra "github.com/ory/client-go"
 	"github.com/ory/common/env"
 	"github.com/pkg/errors"
 )
 
 const (
-	port = "3000"
+	port             = "3000"
+	loginSessionName = "identity_login_session"
 )
 
 var (
 	hydraAdminURL string
+	store         = sessions.NewCookieStore([]byte("keep-session-store-key-secret"))
 )
 
 func init() {
@@ -38,9 +42,10 @@ func main() {
 	r := chi.NewRouter()
 
 	r.Get("/", home)
-	r.Get("/register", getRegisterPage)
+	r.Get("/register", getSMSVerificationForm)
 	r.Post("/register", register)
-	r.Get("/login", getLoginPage)
+	r.Get("/sms_verifications", getSMSVerificationForm)
+	r.Post("/sms_verifications", issueSMSCode)
 	r.Post("/login", login)
 	r.Get("/consent", getConsentPage)
 	r.Post("/consent", consent)
@@ -48,7 +53,7 @@ func main() {
 	r.Post("/logout", logout)
 
 	r.Post("/refresh_token_hook", tokenHook)
-	r.Post("/token_hook", tokenHook)
+	//r.Post("/token_hook", tokenHook)
 
 	log.Println("Listening on :" + env.Getenv("PORT", port))
 	log.Fatal(http.ListenAndServe(":"+env.Getenv("PORT", port), r))
@@ -60,26 +65,21 @@ func main() {
 
 func home(w http.ResponseWriter, r *http.Request) {
 
-	opSession, err := r.Cookie("ory_hydra_session_dev")
-	errMsg := ""
-	if err != nil {
-		errMsg = err.Error()
-	}
+	hydraSession, _ := r.Cookie("ory_hydra_session_dev")
+	loginSession, _ := r.Cookie(loginSessionName)
 
-	loginURL := url.URL{
-		Scheme: "http",
-		Host:   r.Host,
-		Path:   "/login",
-	}
+	users := model.Store.GetAll()
+
 	renderTemplate(w, "home.html", map[string]interface{}{
-		"LoginURL": loginURL.String(),
-		"Error":    errMsg,
-		"Session":  opSession,
+		"HydraSession": hydraSession,
+		"LoginSession": loginSession,
+		"Users":        users,
 	})
 }
 
-// ユーザー登録画面表示( GET /register )
-func getRegisterPage(w http.ResponseWriter, r *http.Request) {
+// 電話番号入力画面表示( GET /sms_verifications )
+// LoginとRegisterで共通
+func getSMSVerificationForm(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
 	challenge := query.Get("login_challenge")
@@ -87,96 +87,7 @@ func getRegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
 		return
 	}
-	hydraClient := hydraClient()
-
-	respGetLoginReq, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(ctx).LoginChallenge(challenge).Execute()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	_ = respGetLoginReq
-
-	csrfToken := csrf.Token(r)
-	registerURL := url.URL{
-		Scheme: "http",
-		Host:   r.Host,
-		Path:   "/register",
-	}
-
-	renderTemplate(w, "register.html", map[string]interface{}{
-		"Challenge": challenge,
-		"CSRFToken": csrfToken,
-		"Action":    registerURL.String(),
-	})
-}
-
-// ユーザー登録処理( POST /register )
-func register(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	challenge := r.FormValue("challenge")
-	if challenge == "" {
-		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
-		return
-	}
-	// TODO: check CsrfToken
-
-	hydraClient := hydraClient()
-
-	// Check if the user decided to accept or reject the consent request
-	if r.FormValue("submit") == "Deny access" {
-		hydraReq := hydra.NewRejectOAuth2Request()
-		respRejectLoginReq, _, err := hydraClient.OAuth2API.RejectOAuth2LoginRequest(ctx).LoginChallenge(challenge).RejectOAuth2Request(*hydraReq).Execute()
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to reject login request: %v", err), http.StatusInternalServerError)
-			return
-		}
-		http.Redirect(w, r, respRejectLoginReq.RedirectTo, http.StatusFound)
-		return
-	}
-
-	// Validate user credentials (dummy check for example)
-	email := r.FormValue("email")
-	password := r.FormValue("password")
-
-	// TODO: Save User
-	_, _ = password, email
-
-	// TODO: Issue login session (hydra sessionとの棲み分け?)
-	/*
-		_, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(r.Context()).LoginChallenge(challenge).Execute()
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
-			return
-		}
-	*/
-
-	// User authenticated, accept the login request
-	hydraReq := hydra.NewAcceptOAuth2LoginRequest(email) // email is the subject
-	hydraReq.IdentityProviderSessionId = pointer("hoge")
-	// remember trueにすると、このあとの認可リクエストでory_hydra_session_dev セッションがSet-Cookieされる
-	hydraReq.Remember = pointer(true)
-	rememberFor := int64(3600)
-	hydraReq.RememberFor = &rememberFor
-	hydraReq.Acr = pointer("fack_acr")
-
-	respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to accept login request: %v", err), http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
-}
-
-// ログイン画面表示( GET /login )
-func getLoginPage(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	query := r.URL.Query()
-	challenge := query.Get("login_challenge")
-	if challenge == "" {
-		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
-		return
-	}
+	hint := query.Get("hint")
 
 	hydraClient := hydraClient()
 
@@ -186,7 +97,6 @@ func getLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if login can be skipped
 	if respGetLoginReq.Skip {
 		hydraReq := hydra.NewAcceptOAuth2LoginRequest(respGetLoginReq.Subject)
 		respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
@@ -198,23 +108,110 @@ func getLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	csrfToken := csrf.Token(r)
-	loginURL := url.URL{
-		Scheme: "http",
-		Host:   r.Host,
-		Path:   "/login",
+	parsedUrl, _ := url.Parse(respGetLoginReq.GetRequestUrl())
+	params := parsedUrl.Query()
+
+	viaRegister := false
+	if value, ok := params["prompt"]; ok && value[0] == "registration" {
+		viaRegister = true
 	}
 
-	hint := ""
+	csrfToken := csrf.Token(r)
+	action := url.URL{
+		Scheme: "http",
+		Host:   r.Host,
+		Path:   "/sms_verifications",
+	}
+
 	if respGetLoginReq.OidcContext != nil && respGetLoginReq.OidcContext.LoginHint != nil {
 		hint = *respGetLoginReq.OidcContext.LoginHint
 	}
 
-	renderTemplate(w, "login.html", map[string]interface{}{
-		"Challenge": challenge,
-		"CSRFToken": csrfToken,
-		"Action":    loginURL.String(),
-		"Hint":      hint,
+	renderTemplate(w, "input_telephone.html", map[string]interface{}{
+		"Challenge":   challenge,
+		"CSRFToken":   csrfToken,
+		"Action":      action.String(),
+		"Hint":        hint,
+		"ViaRegister": viaRegister,
+	})
+}
+
+// SMSコード発行( POST /sms_verifications )
+// LoginとRegisterで共通
+func issueSMSCode(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	challenge := r.FormValue("challenge")
+	if challenge == "" {
+		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
+		return
+	}
+
+	// TODO: check CSRFToken
+	csrfToken := r.FormValue("_csrf")
+	_ = csrfToken
+
+	hydraClient := hydraClient()
+
+	// Check if the user decided to accept or reject the login request
+	if r.FormValue("submit") == "Deny access" {
+		hydraReq := hydra.NewRejectOAuth2Request()
+		respRejectLoginReq, _, err := hydraClient.OAuth2API.RejectOAuth2LoginRequest(ctx).LoginChallenge(challenge).RejectOAuth2Request(*hydraReq).Execute()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to reject login request: %v", err), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, respRejectLoginReq.RedirectTo, http.StatusFound)
+		return
+	}
+
+	respGetLoginReq, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(r.Context()).LoginChallenge(challenge).Execute()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if respGetLoginReq.Skip {
+		hydraReq := hydra.NewAcceptOAuth2LoginRequest(respGetLoginReq.Subject)
+		respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to accept login request: %v", err), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
+		return
+	}
+
+	parsedUrl, _ := url.Parse(respGetLoginReq.GetRequestUrl())
+	params := parsedUrl.Query()
+
+	viaRegister := false
+	actionPath := "/login"
+	if value, ok := params["prompt"]; ok && value[0] == "registration" {
+		actionPath = "/register"
+		viaRegister = true
+	}
+
+	telephone := r.FormValue("telephone")
+	// TODO:
+	// 1. SMSコード発行
+	// 2. SMSコードを電話番号と紐づけて保存(リトライ制限チェック)
+	// 3. SMSコードを送信
+	smsCode := "123456"
+
+	csrfToken = csrf.Token(r)
+	action := url.URL{
+		Scheme: "http",
+		Host:   r.Host,
+		Path:   actionPath,
+	}
+
+	renderTemplate(w, "input_sms_code.html", map[string]interface{}{
+		"Challenge":   challenge,
+		"CSRFToken":   csrfToken,
+		"SMSCode":     smsCode,
+		"Action":      action.String(),
+		"Telephone":   telephone,
+		"ViaRegister": viaRegister,
 	})
 }
 
@@ -226,7 +223,10 @@ func login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
 		return
 	}
-	// TODO: check CsrfToken
+
+	// TODO: check CSRFToken
+	csrfToken := r.FormValue("_csrf")
+	_ = csrfToken
 
 	hydraClient := hydraClient()
 
@@ -243,44 +243,158 @@ func login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate user credentials (dummy check for example)
-	email := r.FormValue("email")
-	password := r.FormValue("password")
-	if email != "foo@bar.com" || password != "foobar" {
+	smsCode := r.FormValue("sms_code")
+	fmt.Printf("SMS Code: %s\n", smsCode)
+	if smsCode != "123456" {
 		csrfToken := csrf.Token(r)
-		loginURL := url.URL{
+		action := url.URL{
 			Scheme: "http",
 			Host:   r.Host,
-			Path:   "/login",
+			Path:   "/sms_verifications",
 		}
 		hint := ""
-		renderTemplate(w, "login.html", map[string]interface{}{
+		renderTemplate(w, "input_telephone.html", map[string]interface{}{
 			"Challenge": challenge,
-			"CsrfToken": csrfToken,
-			"LoginURL":  loginURL.String(),
+			"CSRFToken": csrfToken,
+			"Action":    action.String(),
 			"Hint":      hint,
-			"Error":     "The username / password combination is not correct",
+			"Error":     "The sms code is invalid. Try again.",
 		})
 		return
 	}
 
-	// TODO: Issue login session (hydra sessionとの棲み分け?)
-
-	/*
-		_, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(r.Context()).LoginChallenge(challenge).Execute()
+	respGetLoginReq, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(r.Context()).LoginChallenge(challenge).Execute()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if respGetLoginReq.Skip {
+		hydraReq := hydra.NewAcceptOAuth2LoginRequest(respGetLoginReq.Subject)
+		respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to accept login request: %v", err), http.StatusInternalServerError)
 			return
 		}
-	*/
+		http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
+		return
+	}
 
-	// User authenticated, accept the login request
-	hydraReq := hydra.NewAcceptOAuth2LoginRequest(email) // email is the subject
-	hydraReq.IdentityProviderSessionId = pointer("hoge")
+	// NOTE: smsCodeから電話番号の紐づけをDBから取得すればいいが、サンプル実装のためformから受け取る
+	telephone := r.FormValue("telephone")
+	user, exist := model.Store.GetByTelephone(telephone)
+	if !exist {
+		http.Error(w, fmt.Sprintf("user not found: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Login sessionの発行
+	session, _ := store.Get(r, loginSessionName)
+	session.Values["user_id"] = int(user.ID)
+	if err = session.Save(r, w); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save session: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	hydraReq := hydra.NewAcceptOAuth2LoginRequest(telephone) // telephone is the subject
+	hydraReq.IdentityProviderSessionId = pointer(session.ID)
 	// remember trueにすると、このあとの認可リクエストでory_hydra_session_dev セッションがSet-Cookieされる
 	hydraReq.Remember = pointer(r.FormValue("remember") == "true")
 	rememberFor := int64(3600)
 	hydraReq.RememberFor = &rememberFor
-	hydraReq.Acr = pointer("fack_acr")
+	hydraReq.Acr = pointer("fake_acr")
+
+	respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to accept login request: %v", err), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
+}
+
+// ユーザー登録処理( POST /register )
+func register(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	challenge := r.FormValue("challenge")
+	if challenge == "" {
+		http.Error(w, "Expected a login challenge to be set but received none.", http.StatusBadRequest)
+		return
+	}
+
+	// TODO: check CSRFToken
+	csrfToken := r.FormValue("_csrf")
+	_ = csrfToken
+
+	hydraClient := hydraClient()
+
+	// Check if the user decided to accept or reject the consent request
+	if r.FormValue("submit") == "Deny access" {
+		hydraReq := hydra.NewRejectOAuth2Request()
+		respRejectLoginReq, _, err := hydraClient.OAuth2API.RejectOAuth2LoginRequest(ctx).LoginChallenge(challenge).RejectOAuth2Request(*hydraReq).Execute()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to reject login request: %v", err), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, respRejectLoginReq.RedirectTo, http.StatusFound)
+		return
+	}
+
+	// Validate user credentials (dummy check for example)
+	smsCode := r.FormValue("sms_code")
+	fmt.Printf("SMS Code: %s\n", smsCode)
+	if smsCode != "123456" {
+		csrfToken := csrf.Token(r)
+		action := url.URL{
+			Scheme: "http",
+			Host:   r.Host,
+			Path:   "/sms_verifications",
+		}
+		hint := ""
+		renderTemplate(w, "input_telephone.html", map[string]interface{}{
+			"Challenge": challenge,
+			"CSRFToken": csrfToken,
+			"Action":    action.String(),
+			"Hint":      hint,
+			"Error":     "The sms code is invalid. Try again.",
+		})
+		return
+	}
+
+	respGetLoginReq, _, err := hydraClient.OAuth2API.GetOAuth2LoginRequest(r.Context()).LoginChallenge(challenge).Execute()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch login request: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if respGetLoginReq.Skip {
+		hydraReq := hydra.NewAcceptOAuth2LoginRequest(respGetLoginReq.Subject)
+		respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to accept login request: %v", err), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, respAcceptLoginReq.RedirectTo, http.StatusFound)
+		return
+	}
+
+	// NOTE: smsCodeから電話番号の紐づけをDBから取得すればいいが、サンプル実装のためformから受け取る
+	telephone := r.FormValue("telephone")
+	id := model.Store.Create(&model.User{Telephone: telephone})
+
+	// Login sessionの発行
+	session, _ := store.Get(r, loginSessionName)
+	session.Values["user_id"] = int(id)
+	if err = session.Save(r, w); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save session: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// User authenticated, accept the login request
+	hydraReq := hydra.NewAcceptOAuth2LoginRequest(fmt.Sprint(id)) // telephone is the subject
+	hydraReq.IdentityProviderSessionId = pointer(session.ID)
+	// remember trueにすると、このあとの認可リクエストでory_hydra_session_dev セッションがSet-Cookieされる
+	hydraReq.Remember = pointer(true)
+	rememberFor := int64(3600)
+	hydraReq.RememberFor = &rememberFor
+	hydraReq.Acr = pointer("fake_acr")
 
 	respAcceptLoginReq, _, err := hydraClient.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
 	if err != nil {
@@ -313,7 +427,8 @@ func getConsentPage(w http.ResponseWriter, r *http.Request) {
 	skipConsent := false
 	if consentRequest.Skip != nil {
 		skipConsent = *consentRequest.Skip
-	} else if consentRequest.Client.SkipConsent != nil {
+	}
+	if consentRequest.Client.SkipConsent != nil {
 		skipConsent = *consentRequest.Client.SkipConsent
 	}
 

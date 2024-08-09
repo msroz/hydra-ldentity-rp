@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OP | Login</title>
+    <title>OP | Input SMS</title>
     <style>
         body {
             font-family: Verdana, sans-serif;
@@ -16,29 +16,28 @@
     </style>
 </head>
 <body>
-    <h1 id="login-title">OP | Login</h1>
+    <h1 id="intput-sms-title">OP | Input SMS Code({{if .ViaRegister }}Register{{ else }}Login{{ end }})</h1>
     {{ if .Error }}
         <p>{{ .Error }}</p>
     {{ end }}
     <form action="{{ .Action }}" method="POST">
-        <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
+        <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
         <input type="hidden" name="challenge" value="{{ .Challenge }}">
+        <input type="hidden" id="telephone" name="telephone" value="{{ .Telephone }}">
         <table>
             <tr>
                 <td>
-                    <input type="email" id="email" name="email" value="{{ if .Hint }}{{ .Hint }}{{ else }}foo@bar.com{{ end }}" placeholder="foo@bar.com">
+                    <lable for="sms_code">SMS Code:</lable>
                 </td>
-                <td>(it's "foo@bar.com")</td>
+                <td></td>
             </tr>
             <tr>
                 <td>
-                    <input type="password" id="password" name="password" value="foobar">
+                    <input type="input" id="sms_code" name="sms_code" value="123456" placeholder="123456">
                 </td>
-                <td>(it's "foobar")</td>
+                <td>(it's always "123456")</td>
             </tr>
         </table>
-        <input type="checkbox" id="remember" name="remember" value="true">
-        <label for="remember">Remember me</label>
         <br>
         <input type="submit" id="accept" name="submit" value="Log in">
         <input type="submit" id="reject" name="submit" value="Deny access">

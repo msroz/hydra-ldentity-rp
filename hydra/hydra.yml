@@ -8,7 +8,7 @@ urls:
   self:
     issuer: http://127.0.0.1:4444
   consent: http://127.0.0.1:3000/consent
-  login: http://127.0.0.1:3000/login
+  login: http://127.0.0.1:3000/sms_verifications
   logout: http://127.0.0.1:3000/logout
   registration: http://127.0.0.1:3000/register
 
@@ -25,5 +25,10 @@ oidc:
       salt: youReallyNeedToChangeThis
 
 oauth2:
+  # Refresh Token Grantの場合、Self-Hostedを経由せずに新しいTokenが発行されるため、
+  # Webhookを利用してTokenに変更を加えることができる。
+  # token_hookと併用する場合は、2回発火する
   refresh_token_hook: http://idp:3000/refresh_token_hook
-  token_hook: http://idp:3000/token_hook
+
+  # Accept Consent Request APIで同様のことができるので、self-hostedではtoken_hookは利用する必要はない
+  # token_hook: http://idp:3000/token_hook

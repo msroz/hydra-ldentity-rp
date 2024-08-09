@@ -17,26 +17,28 @@
 </head>
 <body>
     <h1>OP | Root</h1>
-    {{ if .Error }}
-        <p>Error Message: {{ .Error }}</p>
-    {{ end }}
-    <div>
-        <ul>
-            <li>GET /login</li>
-            <li>POST /login</li>
-            <li>GET /consent</li>
-            <li>POST /consent</li>
-            <li>GET /logout</li>
-            <li>POST /logout</li>
-        </ul>
-    </div>
     <p>
-        Click <a href="{{.LoginURL}}">here</a> to perform the exemplary authorize code flow.
-    </p>
-    <p>
-        {{ if .Session }}
-            Session exists: {{ .Session }}
+        {{ if .HydraSession }}
+        HydraSession exists: {{ .HydraSession }}
         {{ end }}
     </p>
+    <p>
+        {{ if .LoginSession }}
+        LoginSession exists: {{ .LoginSession }}
+        {{ end }}
+    </p>
+    <h2>Users</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Telephone</th>
+        </tr>
+        {{range .Users }}
+        <tr>
+            <td>{{.ID}}</td>
+            <td>{{.Telephone }}</td>
+        </tr>
+        {{end}}
+    </table>
 </body>
 </html>
