@@ -1,3 +1,5 @@
+# See: https://www.ory.sh/docs/hydra/reference/configuration
+
 serve:
   cookies:
     same_site_mode: Lax
@@ -21,3 +23,7 @@ oidc:
       # - public
     pairwise:
       salt: youReallyNeedToChangeThis
+
+oauth2:
+  refresh_token_hook: http://idp:3000/refresh_token_hook
+  token_hook: http://idp:3000/token_hook

@@ -177,7 +177,7 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("nonce", string(nonce)),
 		oauth2.SetAuthURLParam("prompt", "none"),
-		oauth2.SetAuthURLParam("max_age", "0"),
+		//oauth2.SetAuthURLParam("max_age", "0"),
 		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
 	)
 

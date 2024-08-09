@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -30,7 +31,7 @@ func init() {
 		log.Fatal("HYDRA_ADMIN_URL environment variable not set")
 	}
 
-	fmt.Printf("[RP]============> hydraAdminURL: %s\n", hydraAdminURL)
+	fmt.Printf("[IdP]============> hydraAdminURL: %s\n", hydraAdminURL)
 }
 
 func main() {
@@ -45,6 +46,9 @@ func main() {
 	r.Post("/consent", consent)
 	r.Get("/logout", getLogoutPage)
 	r.Post("/logout", logout)
+
+	r.Post("/refresh_token_hook", tokenHook)
+	r.Post("/token_hook", tokenHook)
 
 	log.Println("Listening on :" + env.Getenv("PORT", port))
 	log.Fatal(http.ListenAndServe(":"+env.Getenv("PORT", port), r))
@@ -304,10 +308,31 @@ func getConsentPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If consent can be skipped
-	if consentRequest.Skip != nil && *consentRequest.Skip {
-		// TODO:
-		http.Error(w, "TODO: acceptOAuth2Consent because of skip consent", http.StatusInternalServerError)
+	// consentRequest.Skip は End-User がスキップ選択したとき(Remember=true)にtrueになる
+	// consent.Client.SkipConsentは Client設定でスキップ設定されている場合にtrueになる
+	skipConsent := false
+	if consentRequest.Skip != nil {
+		skipConsent = *consentRequest.Skip
+	} else if consentRequest.Client.SkipConsent != nil {
+		skipConsent = *consentRequest.Client.SkipConsent
+	}
+
+	if skipConsent {
+		rememberFor := int64(3600)
+		body, _, err := hydraClient.OAuth2API.AcceptOAuth2ConsentRequest(ctx).ConsentChallenge(challenge).AcceptOAuth2ConsentRequest(hydra.AcceptOAuth2ConsentRequest{
+			Context:                  map[string]interface{}{"foo": "bar"},
+			GrantScope:               consentRequest.GetRequestedScope(),
+			Session:                  nil,
+			GrantAccessTokenAudience: consentRequest.RequestedAccessTokenAudience,
+			Remember:                 pointer(true),
+			RememberFor:              &rememberFor,
+		}).Execute()
+		if err != nil {
+			http.Error(w, "Failed to accept consent request", http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, body.RedirectTo, http.StatusFound)
 		return
 	}
 
@@ -480,6 +505,21 @@ func logout(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Redirecting to: %s", resp.RedirectTo)
 	http.Redirect(w, r, resp.RedirectTo, http.StatusSeeOther)
+}
+
+// トークンHook( POST /token_hook )
+func tokenHook(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	path := r.URL.Path
+
+	fmt.Printf("[IdP / Token Hook / %s] ======> Received JSON: %s\n", path, string(body))
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 /*
