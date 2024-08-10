@@ -6,7 +6,9 @@ type ID int
 
 type User struct {
 	ID        ID
+	Subject   string // IdPのユーザーID
 	Telephone string
+	IDToken   string
 }
 
 type UserStore struct {
@@ -16,22 +18,28 @@ type UserStore struct {
 }
 
 var Store = &UserStore{
-	users: map[ID]*User{
-		1: {ID: 1, Telephone: "08012345678"},
-		2: {ID: 2, Telephone: "00000000000"},
-		3: {ID: 3, Telephone: "11111111111"},
-	},
-	nextID: 4,
+	users:  map[ID]*User{},
+	nextID: 100,
 }
 
-func (us *UserStore) Create(u *User) ID {
+func (us *UserStore) Create(u *User) *User {
 	us.Lock()
 	defer us.Unlock()
 
 	u.ID = us.nextID
 	us.nextID++
 	us.users[u.ID] = u
-	return u.ID
+	return u
+}
+
+func (us *UserStore) FindOrCreateBySubject(u *User) *User {
+	for _, user := range us.users {
+		if user.Subject == u.Subject {
+			return user
+		}
+	}
+
+	return us.Create(u)
 }
 
 func (us *UserStore) FindAll() []*User {
@@ -51,7 +59,7 @@ func (us *UserStore) Find(id ID) (*User, bool) {
 	return user, exists
 }
 
-func (us *UserStore) FindByTelephone(tel string) (*User, bool) {
+func (us *UserStore) GetByTelephone(tel string) (*User, bool) {
 	us.Lock()
 	defer us.Unlock()
 	for _, user := range us.users {

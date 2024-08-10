@@ -68,7 +68,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 	hydraSession, _ := r.Cookie("ory_hydra_session_dev")
 	loginSession, _ := r.Cookie(loginSessionName)
 
-	users := model.Store.GetAll()
+	users := model.Store.FindAll()
 
 	renderTemplate(w, "home.html", map[string]interface{}{
 		"HydraSession": hydraSession,
@@ -281,7 +281,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	// NOTE: smsCodeから電話番号の紐づけをDBから取得すればいいが、サンプル実装のためformから受け取る
 	telephone := r.FormValue("telephone")
-	user, exist := model.Store.GetByTelephone(telephone)
+	user, exist := model.Store.FindByTelephone(telephone)
 	if !exist {
 		http.Error(w, fmt.Sprintf("user not found: %v", err), http.StatusInternalServerError)
 		return

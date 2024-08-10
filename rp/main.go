@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -9,11 +11,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"rp/model"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/sessions"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -25,7 +28,9 @@ import (
 )
 
 const (
-	port = "5555"
+	port                = "5555"
+	loginSessionName    = "rp_login_session"
+	authZReqSessionName = "rp_authz_req_session"
 )
 
 var (
@@ -36,60 +41,9 @@ var (
 	hydraTokenReqURL url.URL = url.URL{Scheme: "http", Host: "hydra:4444"}     // from RP Server to Hydra
 
 	redirectURL string = fmt.Sprintf("http://127.0.0.1:%s/callback", port)
+
+	store = sessions.NewCookieStore([]byte("keep-session-store-key-secret"))
 )
-
-type User struct {
-	ID      int
-	IDToken string
-}
-
-type UserStore struct {
-	sync.Mutex
-	users  map[int]*User
-	nextID int
-}
-
-var userStore = &UserStore{
-	users:  map[int]*User{},
-	nextID: 1,
-}
-
-func (us *UserStore) Create(u *User) int {
-	us.Lock()
-	defer us.Unlock()
-
-	u.ID = us.nextID
-	us.nextID++
-	us.users[u.ID] = u
-	return u.ID
-}
-
-func (us *UserStore) GetAll() []*User {
-	us.Lock()
-	defer us.Unlock()
-	users := make([]*User, 0, len(us.users))
-	for _, user := range us.users {
-		users = append(users, user)
-	}
-	return users
-}
-
-func (us *UserStore) Get(id int) (*User, bool) {
-	us.Lock()
-	defer us.Unlock()
-	user, exists := us.users[id]
-	return user, exists
-}
-
-func (us *UserStore) Delete(id int) bool {
-	us.Lock()
-	defer us.Unlock()
-	_, exists := us.users[id]
-	if exists {
-		delete(us.users, id)
-	}
-	return exists
-}
 
 func init() {
 	clientID = os.Getenv("CLIENT_ID")
@@ -125,10 +79,13 @@ Request handlers
 
 func home(w http.ResponseWriter, r *http.Request) {
 
+	loginSession, _ := r.Cookie(loginSessionName)
+
 	renderTemplate(w, "home.html", map[string]interface{}{
 		"ClientID":     clientID,
 		"ClientSecret": clientSecret,
-		"Users":        userStore.GetAll(),
+		"Users":        model.Store.FindAll(),
+		"LoginSession": loginSession,
 	})
 }
 
@@ -149,10 +106,20 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	// TODO: state, nonceをsessionと紐づける
-	// TODO: PKCE対応
-	//   code_verifier, code_challenge, code_challenge_method を生成
-	//   認可Requestにcode_challengeとcode_challenge_methodを追加
+	reqSession, _ := store.Get(r, authZReqSessionName)
+
+	// state - CSRF protection
+	reqSession.Values["state"] = string(state)
+	// nonce - replay attack protection
+	reqSession.Values["nonce"] = string(nonce)
+	// PKCE - 認可コード横取り対策
+	codeVerifier, _ := randx.RuneSequence(64, randx.AlphaLower)
+	converted := sha256.Sum256([]byte(string(codeVerifier)))
+	codeChallenge := base64.RawURLEncoding.EncodeToString(converted[:])
+	codeChallengeMethod := "S256"
+	reqSession.Values["code_verifier"] = string(codeVerifier)
+
+	reqSession.Save(r, w)
 
 	authZReqWithPromptLoginURL := conf.AuthCodeURL(
 		string(state),
@@ -161,6 +128,8 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 		oauth2.SetAuthURLParam("prompt", "login"),
 		oauth2.SetAuthURLParam("max_age", "0"),
 		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", codeChallengeMethod),
 	)
 
 	authZReqWithPromptRegistrationURL := conf.AuthCodeURL(
@@ -170,6 +139,8 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 		oauth2.SetAuthURLParam("prompt", "registration"),
 		oauth2.SetAuthURLParam("max_age", "0"),
 		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", codeChallengeMethod),
 	)
 
 	authZReqWithPromptNoneURL := conf.AuthCodeURL(
@@ -179,6 +150,8 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 		oauth2.SetAuthURLParam("prompt", "none"),
 		//oauth2.SetAuthURLParam("max_age", "0"),
 		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"), // custom parameter
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", codeChallengeMethod),
 	)
 
 	renderTemplate(w, "initiate.html", map[string]interface{}{
@@ -203,12 +176,26 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 
 	state := r.URL.Query().Get("state")
 	fmt.Printf("state: %s\n", state)
-	// TODO: Check state
+
+	reqSession, _ := store.Get(r, authZReqSessionName)
+	if reqSession.IsNew {
+		fmt.Printf("session not found\n")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	stateInSession := reqSession.Values["state"].(string)
+
+	if state != stateInSession {
+		fmt.Printf("state not match\n")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	codeVerifier := reqSession.Values["code_verifier"].(string)
 
 	code := r.URL.Query().Get("code")
 	conf := oauth2Config()
-	// TODO: code_verifierをToken Requestに追加
-	tokens, err := conf.Exchange(r.Context(), code)
+	tokens, err := conf.Exchange(r.Context(), code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Unable to exchange code for token: %s\n", err)
 
@@ -275,8 +262,15 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Check nonce
-	_ = nonce
+	nonceInSession := reqSession.Values["nonce"].(string)
+	if nonce != nonceInSession {
+		fmt.Printf("nonce not match %s != %s", nonce, nonceInSession)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	// 認可リクエストのセッションを削除
+	reqSession.Options.MaxAge = -1
+	reqSession.Save(r, w)
 
 	s, exist := verifiedToken.Get("sid")
 	if !exist {
@@ -292,20 +286,27 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	// TODO: sidってsessionと紐づける必要あったっけ?
 	_ = sid
-
 	sub := verifiedToken.Subject()
-	_ = sub
+	user := model.Store.FindOrCreateBySubject(&model.User{Subject: sub, IDToken: idTokenStr})
+
+	// Login sessionの発行
+	session, _ := store.Get(r, loginSessionName)
+	session.Values["user_id"] = int(user.ID)
+	if err = session.Save(r, w); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save session: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	loginSession, _ := r.Cookie(loginSessionName)
 
 	idTokenPayload, _ := json.MarshalIndent(verifiedToken, "", "  ")
-
-	userStore.Create(&User{IDToken: idTokenStr})
-
 	renderTemplate(w, "callback.html", map[string]interface{}{
 		"AccessToken":    tokens.AccessToken,
 		"RefreshToken":   tokens.RefreshToken,
 		"Expiry":         tokens.Expiry.Format(time.RFC1123),
 		"IDToken":        idTokenStr,
 		"IDTokenPayload": string(idTokenPayload),
+		"LoginSession":   loginSession,
 	})
 
 }
@@ -316,7 +317,7 @@ func logout(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	id, _ := strconv.Atoi(query.Get("id"))
 
-	usr, exist := userStore.Get(id)
+	usr, exist := model.Store.Find(model.ID(id))
 	err := ""
 	if !exist {
 		err = "User not found"
@@ -343,10 +344,15 @@ func logoutCallback(w http.ResponseWriter, r *http.Request) {
 	// TODO: AuthZ Request(prompt=none) to check OP session logged-out
 	// http.Redirect(w, r, "{AuthZ Request URL}", http.StatusFound)
 
+	session, _ := store.Get(r, loginSessionName)
+	session.Options.MaxAge = -1
+	session.Save(r, w)
+
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func backchannelLogout(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[RP]==========================> start backchannelLogout\n")
 	ctx := r.Context()
 	r.ParseForm()
 
@@ -442,5 +448,3 @@ func renderTemplate(w http.ResponseWriter, id string, d interface{}) bool {
 	}
 	return true
 }
-
-func pointer[T any](v T) *T { return &v }

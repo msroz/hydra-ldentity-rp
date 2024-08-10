@@ -6,6 +6,7 @@ toolchain go1.22.5
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0
+	github.com/gorilla/sessions v1.3.0
 	github.com/lestrrat-go/jwx/v2 v2.1.1
 	github.com/ory/common v0.4.0
 	github.com/ory/x v0.0.646
@@ -28,6 +29,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/goccy/go-yaml v1.9.6 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
