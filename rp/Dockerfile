@@ -18,6 +18,7 @@ RUN \
   libffi-dev \
   curl \
   mysql-client \
+  openssl \
   ca-certificates && \
   apk add python3 && \
   update-ca-certificates

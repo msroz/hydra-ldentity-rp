@@ -6,6 +6,7 @@ toolchain go1.22.5
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0
+	github.com/google/uuid v1.0.0
 	github.com/gorilla/sessions v1.3.0
 	github.com/lestrrat-go/jwx/v2 v2.1.1
 	github.com/ory/common v0.4.0

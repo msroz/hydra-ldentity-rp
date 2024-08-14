@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"rp/auth"
 	"rp/model"
 	"strconv"
 	"time"
@@ -28,7 +29,6 @@ import (
 )
 
 const (
-	port                = "5555"
 	loginSessionName    = "rp_login_session"
 	authZReqSessionName = "rp_authz_req_session"
 )
@@ -36,10 +36,11 @@ const (
 var (
 	oauth2Conf oauth2.Config
 
-	hydraAuthZReqURL url.URL = url.URL{Scheme: "http", Host: "127.0.0.1:4444"} // from RP UA to Hydra
-	hydraTokenReqURL url.URL = url.URL{Scheme: "http", Host: "hydra:4444"}     // from RP Server to Hydra
+	port             string  = env.Getenv("PORT", "5555")
+	hydraAuthZReqURL url.URL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_AUTHZ_REQUEST_HOST", "127.0.0.1:4444")} // from RP UA to Hydra
+	hydraTokenReqURL url.URL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_TOKEN_REQUEST_HOST", "hydra:4444")}     // from RP Server to Hydra
 
-	redirectURL string = fmt.Sprintf("http://127.0.0.1:%s/callback", port)
+	redirectURL string = env.Getenv("REDIRECT_URL", fmt.Sprintf("http://127.0.0.1:%s/callback", port))
 
 	store = sessions.NewCookieStore([]byte("keep-session-store-key-secret"))
 )
@@ -60,7 +61,13 @@ func main() {
 	r.Get("/logout_callback", logoutCallback)
 	r.Post("/backchannel_logout", backchannelLogout)
 
+	r.Get("/.well-known/jwks.json", jwksHandler)
+
 	r.Post("/clients", saveClient)
+
+	// For Universal Links (iOS)
+	r.Get("/.well-known/apple-app-site-association", appleAppSiteAssociationHandler)
+	r.Get("/native/initiate", initiateNativeFlow)
 
 	log.Println("Listening on :" + env.Getenv("PORT", port))
 	log.Fatal(http.ListenAndServe(":"+env.Getenv("PORT", port), r))
@@ -83,6 +90,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// RPのOAuth2 Client情報を保存する
 func saveClient(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("client_id")
 	secret := r.FormValue("client_secret")
@@ -170,6 +178,34 @@ func initiate(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func initiateNativeFlow(w http.ResponseWriter, r *http.Request) {
+	// TODO: state, nonce, PKCE
+	conf := oauth2Config()
+	state := "DUMMY"
+	authZReqWithPromptLoginURL := conf.AuthCodeURL(
+		string(state),
+		oauth2.SetAuthURLParam("audience", ""),
+		oauth2.SetAuthURLParam("prompt", "login"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+	)
+
+	authZReqWithPromptRegistrationURL := conf.AuthCodeURL(
+		string(state),
+		oauth2.SetAuthURLParam("audience", ""),
+		oauth2.SetAuthURLParam("prompt", "registration"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+	)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	data := map[string]interface{}{
+		"loginURL":        authZReqWithPromptLoginURL,
+		"registrationURL": authZReqWithPromptRegistrationURL,
+	}
+
+	json.NewEncoder(w).Encode(data)
+}
+
 // 認可レスポンスを受け取る(redirect_uri)
 func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -203,7 +239,8 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 
 	code := r.URL.Query().Get("code")
 	conf := oauth2Config()
-	tokens, err := conf.Exchange(r.Context(), code, oauth2.VerifierOption(codeVerifier))
+
+	tokens, err := auth.TokenRequestWithPrivateKeyJwt(conf, code, codeVerifier)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Unable to exchange code for token: %s\n", err)
 
@@ -241,7 +278,6 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 	  "sub": "d91d6630a562a8f3bd5d217eb39e05747e2a4b8369490cf02fcf6d325a10e609"
 	}
 	*/
-	idTokenStr := fmt.Sprintf("%s", tokens.Extra("id_token"))
 
 	set, err := fetchJWKs(ctx)
 	if err != nil {
@@ -250,6 +286,7 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idTokenStr := tokens.Extra("id_token").(string)
 	verifiedToken, err := jwt.ParseString(idTokenStr, jwt.WithKeySet(set, jws.WithRequireKid(true)))
 	if err != nil {
 		fmt.Printf("failed to verify JWS: %s\n", err)
@@ -420,6 +457,51 @@ func backchannelLogout(w http.ResponseWriter, r *http.Request) {
 	// Delete Refresh Token issued without offline_access
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// GET /.well-known/jwks.json
+func jwksHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("/.well-known/jwks.json accessed\n")
+
+	w.Header().Set("Content-Type", "application/json")
+	file, err := os.Open("keys/public_key.jwk")
+	if err != nil {
+		fmt.Printf("failed to open JWK file: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	var jwkData map[string]interface{}
+	if err := json.NewDecoder(file).Decode(&jwkData); err != nil {
+		fmt.Printf("failed to decode JWK file: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"keys": []interface{}{jwkData}})
+}
+
+// GET /.well-known/apple-app-site-association
+func appleAppSiteAssociationHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	data := map[string]interface{}{
+		"applinks": map[string]interface{}{
+			"app": []interface{}{},
+			"details": []map[string]interface{}{
+				{
+					"appID": env.Getenv("APPLE_APP_ID", "aaa"),
+					"paths": []string{"/callback"},
+				},
+			},
+		},
+		"webcredentials": map[string]interface{}{
+			"apps": []interface{}{"aaa"},
+		},
+	}
+
+	json.NewEncoder(w).Encode(data)
 }
 
 /*
