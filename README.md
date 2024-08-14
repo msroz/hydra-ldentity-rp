@@ -45,9 +45,11 @@ code_client_secret:YpSNt87xkAYzOzkuU3Qphuu8as
 ```yml
 # in docker-compose.yml
     environment:
-      - CLIENT_ID=8d14540d-55b7-4d55-8eaf-cf1392dbbcd9
-      - CLIENT_SECRET=YpSNt87xkAYzOzkuU3Qphuu8as # This is a secret, do not expose it in production
+      - DEFAULT_CLIENT_ID=8d14540d-55b7-4d55-8eaf-cf1392dbbcd9
+      - DEFAULT_CLIENT_SECRET=YpSNt87xkAYzOzkuU3Qphuu8as # This is a secret, do not expose it in production
 ```
+
+Or, you can save cleint id and secret via form in http://127.0.0.1:5555/
 
 
 # References

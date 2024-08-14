@@ -57,8 +57,8 @@ services:
       dockerfile: ./Dockerfile
     command: air -c ./air.toml
     environment:
-      - CLIENT_ID=8d14540d-55b7-4d55-8eaf-cf1392dbbcd9
-      - CLIENT_SECRET=YpSNt87xkAYzOzkuU3Qphuu8as # This is a secret, do not expose it in production
+      - DEFAULT_CLIENT_ID=8d14540d-55b7-4d55-8eaf-cf1392dbbcd9
+      - DEFAULT_CLIENT_SECRET=YpSNt87xkAYzOzkuU3Qphuu8as # This is a secret, do not expose it in production
     ports:
       - "5555:5555"
     volumes:

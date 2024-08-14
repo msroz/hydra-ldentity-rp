@@ -16,11 +16,33 @@
 </head>
 <body>
     <h1>RP | Home</h1>
-    <ul>
-        <li>Client ID: <code>{{ .ClientID }}</code></li>
-        <li>Client Secret: <code>{{ .ClientSecret }}</code></li>
-    </ul>
 
+    <h2>Current Client Info</h1>
+    <div>
+        <ul>
+            <li>Client ID: <code>{{ .ClientID }}</code></li>
+            <li>Client Secret: <code>{{ .ClientSecret }}</code></li>
+        </ul>
+    </div>
+
+    <form action="{{ .Action }}" method="POST">
+        <table>
+            <tr>
+                <td>
+                    <input type="input" id="client_id" name="client_id" value="{{ .ClientID }}" placeholder="">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <input type="input" id="client_secret" name="client_secret" value="{{ .ClientSecret }}">
+                </td>
+            </tr>
+        </table>
+        <input type="submit" id="save" name="submit" value="Save">
+        <input type="submit" id="reset" name="submit" value="Reset">
+    </form>
+
+    <h2>Initiate Request</h2>
     <p><a href="/initiate">Move to Initiate Authorize Request Page</a></p>
 
     <h2>UserStore</h2>

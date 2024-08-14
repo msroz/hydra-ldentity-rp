@@ -34,8 +34,7 @@ const (
 )
 
 var (
-	clientID     string
-	clientSecret string
+	oauth2Conf oauth2.Config
 
 	hydraAuthZReqURL url.URL = url.URL{Scheme: "http", Host: "127.0.0.1:4444"} // from RP UA to Hydra
 	hydraTokenReqURL url.URL = url.URL{Scheme: "http", Host: "hydra:4444"}     // from RP Server to Hydra
@@ -46,17 +45,9 @@ var (
 )
 
 func init() {
-	clientID = os.Getenv("CLIENT_ID")
-	if clientID == "" {
-		log.Fatal("CLIENT_ID environment variable not set")
-	}
-
-	clientSecret = os.Getenv("CLIENT_SECRET")
-	if clientSecret == "" {
-		log.Fatal("CLIENT_SECRET environment variable not set")
-	}
-
-	fmt.Printf("[RP]============> clientID: %s\nclientSecret: %s\n", clientID, clientSecret)
+	id := os.Getenv("DEFAULT_CLIENT_ID")
+	sec := os.Getenv("DEFAULT_CLIENT_SECRET")
+	loadOAuth2Config(id, sec)
 }
 
 func main() {
@@ -68,6 +59,8 @@ func main() {
 	r.Get("/logout", logout)
 	r.Get("/logout_callback", logoutCallback)
 	r.Post("/backchannel_logout", backchannelLogout)
+
+	r.Post("/clients", saveClient)
 
 	log.Println("Listening on :" + env.Getenv("PORT", port))
 	log.Fatal(http.ListenAndServe(":"+env.Getenv("PORT", port), r))
@@ -82,11 +75,26 @@ func home(w http.ResponseWriter, r *http.Request) {
 	loginSession, _ := r.Cookie(loginSessionName)
 
 	renderTemplate(w, "home.html", map[string]interface{}{
-		"ClientID":     clientID,
-		"ClientSecret": clientSecret,
+		"ClientID":     oauth2Config().ClientID,
+		"ClientSecret": oauth2Config().ClientSecret,
 		"Users":        model.Store.FindAll(),
 		"LoginSession": loginSession,
+		"Action":       "/clients",
 	})
+}
+
+func saveClient(w http.ResponseWriter, r *http.Request) {
+	id := r.FormValue("client_id")
+	secret := r.FormValue("client_secret")
+
+	if r.FormValue("submit") == "Reset" {
+		id = os.Getenv("DEFAULT_CLIENT_ID")
+		secret = os.Getenv("DEFAULT_CLIENT_SECRET")
+	}
+
+	loadOAuth2Config(id, secret)
+
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // 認可リクエストを生成する
@@ -426,9 +434,13 @@ func fetchJWKs(ctx context.Context) (jwk.Set, error) {
 }
 
 func oauth2Config() oauth2.Config {
-	return oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
+	return oauth2Conf
+}
+
+func loadOAuth2Config(id, secret string) {
+	oauth2Conf = oauth2.Config{
+		ClientID:     id,
+		ClientSecret: secret,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  urlx.AppendPaths(&hydraAuthZReqURL, "/oauth2/auth").String(),
 			TokenURL: urlx.AppendPaths(&hydraTokenReqURL, "/oauth2/token").String(),
