@@ -28,10 +28,10 @@ oauth2:
   # Refresh Token Grantの場合、Self-Hostedを経由せずに新しいTokenが発行されるため、
   # Webhookを利用してTokenに変更を加えることができる。
   # token_hookと併用する場合は、2回発火する
-  refresh_token_hook: http://idp:3000/refresh_token_hook
+  refresh_token_hook: http://identity:3000/refresh_token_hook
 
   # Accept Consent Request APIで同様のことができるので、self-hostedではtoken_hookは利用する必要はない
-  # token_hook: http://idp:3000/token_hook
+  # token_hook: http://identity:3000/token_hook
 
   pkce:
     enforced: true

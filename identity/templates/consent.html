@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OP | Consent</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background-color: #F0F0F0;
+            color: #333;
+            margin: 50px;
+            padding: 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>OP | Consent</h1>
+    <form action="{{ .Action }}" method="POST">
+        <input type="hidden" name="challenge" value="{{ .Challenge }}">
+        <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
+
+        {{ if .Client.LogoUri }}
+            <img src="{{ .Client.LogoUri }}" alt="Client Logo">
+        {{ end }}
+
+        <p>
+            Hi {{ .User }}, application <strong>{{ if .Client.ClientName }}{{ .Client.ClientName }}{{ else }}{{ .Client.ClientId }}{{ end }}</strong> wants access to resources on your behalf and to:
+        </p>
+
+        {{ range .RequestedScope }}
+            <input type="checkbox" class="grant_scope" id="{{ . }}" value="{{ . }}" name="grant_scope">
+            <label for="{{ . }}">{{ . }}</label><br>
+        {{ end }}
+
+        <p>
+            Do you want to be asked next time when this application wants to access your data? The application will not be able to ask for more permissions without your consent.
+        </p>
+        <ul>
+            {{ if .Client.PolicyUri }}
+                <li><a href="{{ .Client.PolicyUri }}">Policy</a></li>
+            {{ end }}
+            {{ if .Client.TosUri }}
+                <li><a href="{{ .Client.TosUri }}">Terms of Service</a></li>
+            {{ end }}
+        </ul>
+        <p>
+            <input type="checkbox" id="remember" name="remember" value="1">
+            <label for="remember">Do not ask me again</label>
+        </p>
+        <p>
+            <input type="submit" id="accept" name="submit" value="Allow access">
+            <input type="submit" id="reject" name="submit" value="Deny access">
+        </p>
+    </form>
+</body>
+</html>

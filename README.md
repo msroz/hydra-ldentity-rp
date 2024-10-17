@@ -28,7 +28,7 @@ $ code_client=$(docker-compose exec hydra \
     --scope openid --scope offline \
     --subject-type pairwise  \
     --token-endpoint-auth-method private_key_jwt \
-    --jwks-uri http://127.0.0.1:5555/.well-known/jwks.json \
+    --jwks-uri http://rp:5555/.well-known/jwks.json \
     --redirect-uri http://127.0.0.1:5555/callback)
 
 $ echo $code_client
