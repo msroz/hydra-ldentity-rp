@@ -1,5 +1,4 @@
 # See: https://www.ory.sh/docs/hydra/reference/configuration
-
 serve:
   cookies:
     same_site_mode: Lax
@@ -7,10 +6,17 @@ serve:
 urls:
   self:
     issuer: http://127.0.0.1:4444
+
+  # 同意フォーム画面
   consent: http://127.0.0.1:3000/consent
+  # ログインフォーム画面
   login: http://127.0.0.1:3000/sms_verifications
-  logout: http://127.0.0.1:3000/logout
+  # ユーザー登録フォーム画面
   registration: http://127.0.0.1:3000/register
+  # ログアウト確認画面
+  logout: http://127.0.0.1:3000/logout
+  # post_logout_redirect_uri にリダイレクトしない場合のfallback先 Identityのログアウト完了画面
+  post_logout_redirect: http://127.0.0.1:3000/post_logout
 
 secrets:
   system:

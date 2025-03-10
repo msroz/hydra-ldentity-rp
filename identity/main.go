@@ -49,6 +49,8 @@ func main() {
 	r.Post("/login", login)
 	r.Get("/consent", getConsentPage)
 	r.Post("/consent", consent)
+
+	r.Get("/post_logout", postLogout)
 	r.Get("/logout", getLogoutPage)
 	r.Post("/logout", logout)
 
@@ -298,7 +300,8 @@ func login(w http.ResponseWriter, r *http.Request) {
 	hydraReq := hydra.NewAcceptOAuth2LoginRequest(telephone) // telephone is the subject
 	hydraReq.IdentityProviderSessionId = pointer(session.ID)
 	// remember trueにすると、このあとの認可リクエストでory_hydra_session_dev セッションがSet-Cookieされる
-	hydraReq.Remember = pointer(r.FormValue("remember") == "true")
+	// hydraReq.Remember = pointer(r.FormValue("remember") == "true")
+	hydraReq.Remember = pointer(true)
 	rememberFor := int64(3600)
 	hydraReq.RememberFor = &rememberFor
 	hydraReq.Acr = pointer("fake_acr")
@@ -561,8 +564,13 @@ func consent(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, body.RedirectTo, http.StatusFound)
 }
 
+func postLogout(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("[Identity]==========================> postLogout called\n")
+}
+
 // ログアウト画面表示( GET /logout )
 func getLogoutPage(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("[Identity]==========================> getLogoutPage called\n")
 	ctx := r.Context()
 	challenge := r.URL.Query().Get("logout_challenge")
 	if challenge == "" {
@@ -589,6 +597,7 @@ func getLogoutPage(w http.ResponseWriter, r *http.Request) {
 
 // ログアウト処理( POST /logout )
 func logout(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("[Identity]==========================> logout called\n")
 	ctx := r.Context()
 	r.ParseForm()
 
@@ -624,6 +633,7 @@ func logout(w http.ResponseWriter, r *http.Request) {
 
 // トークンHook( POST /token_hook )
 func tokenHook(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("[Identity]==========================> tokenHook called \n")
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

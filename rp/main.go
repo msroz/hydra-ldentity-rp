@@ -359,6 +359,7 @@ func authzReqCallback(w http.ResponseWriter, r *http.Request) {
 // RP-initiated Logout
 // SEE: https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RPLogout
 func logout(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("[RP]==========================> logout called\n")
 	query := r.URL.Query()
 	id, _ := strconv.Atoi(query.Get("id"))
 
@@ -368,11 +369,15 @@ func logout(w http.ResponseWriter, r *http.Request) {
 		err = "User not found"
 	}
 
+	_ = usr
+
 	u := urlx.AppendPaths(&hydraAuthZReqURL, "/oauth2/sessions/logout")
 	u = urlx.SetQuery(u, url.Values{
 		// TODO: stateを付与
 		"id_token_hint":            []string{usr.IDToken},
 		"post_logout_redirect_uri": []string{"http://127.0.0.1:5555/logout_callback"},
+		"client_id":                []string{oauth2Config().ClientID},
+		//"client_id": []string{"i_am_invalid_client_id"},
 	})
 	renderTemplate(w, "logout.html", map[string]interface{}{
 		"LogoutURL": u.String(),
@@ -382,6 +387,7 @@ func logout(w http.ResponseWriter, r *http.Request) {
 
 // RP-initiated Logout Callback (post_logout_redirect_uri)
 func logoutCallback(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("[RP]==========================> logoutCallback called\n")
 	state := r.URL.Query().Get("state")
 	fmt.Printf("state: %s\n", state)
 	// TODO: Check state
@@ -393,11 +399,11 @@ func logoutCallback(w http.ResponseWriter, r *http.Request) {
 	session.Options.MaxAge = -1
 	session.Save(r, w)
 
-	http.Redirect(w, r, "/", http.StatusFound)
+	renderTemplate(w, "complete_logout.html", map[string]interface{}{})
 }
 
 func backchannelLogout(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[RP]==========================> start backchannelLogout\n")
+	fmt.Print("[RP]==========================> backchannelLogout called\n")
 	ctx := r.Context()
 	r.ParseForm()
 
