@@ -22,7 +22,7 @@ import (
 // config, codeを受け取ってID Tokenを返す
 func TokenRequestWithPrivateKeyJwt(config oauth2.Config, code string, codeVerifier string) (*oauth2.Token, error) {
 	// configの値を渡すとhttp://hydra:4444/oauth2/tokenになってエラーになっちゃう
-	tokenUrl := "http://127.0.0.1:4444/oauth2/token"
+	tokenUrl := "http://127.0.0.1:8888/oauth2/token"
 
 	clientAssertion, err := generateClientAssertion(config.ClientID, tokenUrl)
 	if err != nil {

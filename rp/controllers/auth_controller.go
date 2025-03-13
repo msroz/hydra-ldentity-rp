@@ -239,11 +239,11 @@ func (c *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
 		err = "User not found"
 	}
 
-	hydraAuthZReqURL := url.URL{Scheme: "http", Host: "127.0.0.1:4444"}
+	hydraAuthZReqURL := url.URL{Scheme: "http", Host: "127.0.0.1:8888"}
 	u := urlx.AppendPaths(&hydraAuthZReqURL, "/oauth2/sessions/logout")
 	u = urlx.SetQuery(u, url.Values{
 		"id_token_hint":            []string{usr.IDToken},
-		"post_logout_redirect_uri": []string{"http://127.0.0.1:5555/logout_callback"},
+		"post_logout_redirect_uri": []string{"http://127.0.0.1:7777/logout_callback"},
 		"client_id":                []string{config.GetOAuth2Config().ClientID},
 	})
 
@@ -302,7 +302,7 @@ func (c *AuthController) BackchannelLogout(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *AuthController) fetchJWKs(ctx context.Context) (jwk.Set, error) {
-	return jwk.Fetch(ctx, "http://hydra:4444/.well-known/jwks.json")
+	return jwk.Fetch(ctx, "http://hydra:8888/.well-known/jwks.json")
 }
 
 func renderTemplate(w http.ResponseWriter, id string, d interface{}) bool {

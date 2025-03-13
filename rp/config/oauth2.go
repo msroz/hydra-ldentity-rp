@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	port             = env.Getenv("PORT", "5555")
-	hydraAuthZReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_AUTHZ_REQUEST_HOST", "127.0.0.1:4444")} // from RP UA to Hydra
-	hydraTokenReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_TOKEN_REQUEST_HOST", "hydra:4444")}     // from RP Server to Hydra
+	port             = env.Getenv("PORT", "7777")
+	hydraAuthZReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_AUTHZ_REQUEST_HOST", "127.0.0.1:8888")} // from RP UA to Hydra
+	hydraTokenReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_TOKEN_REQUEST_HOST", "hydra:8888")}     // from RP Server to Hydra
 	redirectURL      = env.Getenv("REDIRECT_URL", fmt.Sprintf("http://127.0.0.1:%s/callback", port))
 
 	oauth2Conf oauth2.Config

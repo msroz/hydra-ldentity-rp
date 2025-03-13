@@ -2,10 +2,14 @@
 serve:
   cookies:
     same_site_mode: Lax
+  public:
+    port: 8888
+  admin:
+    port: 9999
 
 urls:
   self:
-    issuer: http://127.0.0.1:4444
+    issuer: http://127.0.0.1:8888
 
   # 同意フォーム画面
   consent: http://127.0.0.1:3000/consent

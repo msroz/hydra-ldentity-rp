@@ -1,10 +1,10 @@
 version: "3.7"
 services:
   hydra:
-    image: oryd/hydra:v2.2.0
+    image: oryd/hydra:v2.3.0
     ports:
-      - "4444:4444" # Public port
-      - "4445:4445" # Admin port
+      - "8888:8888" # Public port
+      - "9999:9999" # Admin port
     command: serve -c /etc/config/hydra/hydra.yml all --dev
     volumes:
       - type: bind
@@ -19,7 +19,7 @@ services:
     networks:
       - idp-sample-network
   hydra-migrate:
-    image: oryd/hydra:v2.2.0
+    image: oryd/hydra:v2.3.0
     environment:
       - DSN=mysql://root:secret@tcp(mysqld:3306)/hydra?max_conns=20&max_idle_conns=4
     command: migrate -c /etc/config/hydra/hydra.yml sql -e --yes
@@ -34,7 +34,7 @@ services:
     image: mysql:8.0.26
     platform: linux/amd64
     ports:
-      - "3306:3306"
+      - "5306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=secret
       - MYSQL_DATABASE=hydra
@@ -46,7 +46,7 @@ services:
       dockerfile: ./Dockerfile
     command: air -c ./air.toml
     environment:
-      - HYDRA_ADMIN_URL=http://hydra:4445
+      - HYDRA_ADMIN_URL=http://hydra:9999
     ports:
       - "3000:3000"
     volumes:
@@ -59,14 +59,14 @@ services:
       dockerfile: ./Dockerfile
     command: air -c ./air.toml
     environment:
-      - DEFAULT_CLIENT_ID=${DEFAULT_CLIENT_ID:-ffdb9c8a-7abc-4a44-b164-41c53a9abc59}
-      - DEFAULT_CLIENT_SECRET=${DEFAULT_CLIENT_SECRET:-xmFspPoDIF64eoE.oE8fs3h0O7}
+      - DEFAULT_CLIENT_ID=${DEFAULT_CLIENT_ID:-hydra-sample-id}
+      - DEFAULT_CLIENT_SECRET=${DEFAULT_CLIENT_SECRET:-hydra-sample-secret}
       - APPLE_APP_ID # for apple-app-site-association
       - HYDRA_AUTHZ_REQUEST_HOST=
       - HYDRA_TOKEN_REQUEST_HOST=
       - REDIRECT_ENDPOINT_URL= # OAuth2.0 redirect endpoint
     ports:
-      - "5555:5555"
+      - "7777:7777"
     volumes:
       - "./rp:/app"
     networks:
