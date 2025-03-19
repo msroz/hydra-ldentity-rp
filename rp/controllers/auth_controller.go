@@ -92,6 +92,7 @@ func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChal
 		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"),
 		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
 	)
 }
 
@@ -103,6 +104,7 @@ func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) 
 		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("prompt", "login"),
 		oauth2.SetAuthURLParam("max_age", "0"),
+		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
 	)
 
 	authZReqWithPromptRegistrationURL := conf.AuthCodeURL(
@@ -110,6 +112,7 @@ func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) 
 		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("prompt", "registration"),
 		oauth2.SetAuthURLParam("max_age", "0"),
+		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
 	)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -123,7 +126,8 @@ func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if len(r.URL.Query().Get("error")) > 0 {
 		_, _ = fmt.Fprintf(os.Stderr, "Got error: %s\n", r.URL.Query().Get("error_description"))
-		w.WriteHeader(http.StatusInternalServerError)
+		errorMsg := url.QueryEscape(fmt.Sprintf("Got error: %s", r.URL.Query().Get("error_description")))
+		http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
 		return
 	}
 
@@ -136,8 +140,9 @@ func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.validateState(state, reqSession); err != nil {
-		fmt.Printf("state validation error: %v\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(os.Stderr, "state validation error: %v\n", err)
+		errorMsg := url.QueryEscape(fmt.Sprintf("state validation error: %v, reqSession: %v, state: %v", err, reqSession, state))
+		http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
 		return
 	}
 

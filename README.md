@@ -8,6 +8,15 @@ hydra + self-hosted identity server + sample rp
 - Docker Compose
 - `jq`
 
+# Services
+
+| Service | Host:Port | Description |
+|---------|-----------|-------------|
+| Hydra Public | 127.0.0.1:4444 | Hydra's public endpoint for OAuth/OIDC flows |
+| Hydra Admin | 127.0.0.1:9999 | Hydra's admin endpoint for management |
+| Identity Provider | 127.0.0.1:3000 | Self-hosted identity provider service |
+| Relying Party | 127.0.0.1:7777 | Sample OAuth2 client application |
+
 # Get it started
 
 - Run containers

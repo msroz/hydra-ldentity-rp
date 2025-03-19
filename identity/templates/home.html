@@ -17,6 +17,7 @@
 </head>
 <body>
     <h1>OP | Root</h1>
+    <h2>Current Session</h2>
     <p>
         {{ if .HydraSession }}
         HydraSession exists: {{ .HydraSession }}
@@ -27,16 +28,16 @@
         LoginSession exists: {{ .LoginSession }}
         {{ end }}
     </p>
-    <h2>Users</h2>
+    <h2>User Store</h2>
     <table>
         <tr>
-            <th>ID</th>
-            <th>Telephone</th>
+            <th>User ID</th>
+            <th>Login ID</th>
         </tr>
         {{range .Users }}
         <tr>
             <td>{{.ID}}</td>
-            <td>{{.Telephone }}</td>
+            <td>{{.LoginID}}</td>
         </tr>
         {{end}}
     </table>

@@ -17,6 +17,7 @@ func SetupRoutes() *chi.Mux {
 
 	// Home routes
 	r.Get("/", homeController.Home)
+	r.Get("/error", homeController.Error)
 
 	// Auth routes
 	r.Get("/initiate", authController.Initiate)

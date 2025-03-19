@@ -19,7 +19,7 @@
     <h1>OP | Consent</h1>
     <form action="{{ .Action }}" method="POST">
         <input type="hidden" name="challenge" value="{{ .Challenge }}">
-        <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
+        {{ .csrfField }}
 
         {{ if .Client.LogoUri }}
             <img src="{{ .Client.LogoUri }}" alt="Client Logo">

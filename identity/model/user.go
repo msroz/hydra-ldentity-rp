@@ -5,8 +5,8 @@ import "sync"
 type ID int
 
 type User struct {
-	ID        ID
-	Telephone string
+	ID      ID
+	LoginID string
 }
 
 type UserStore struct {
@@ -17,9 +17,9 @@ type UserStore struct {
 
 var Store = &UserStore{
 	users: map[ID]*User{
-		1: {ID: 1, Telephone: "08012345678"},
-		2: {ID: 2, Telephone: "00000000000"},
-		3: {ID: 3, Telephone: "11111111111"},
+		1: {ID: 1, LoginID: "login-id@example.com"},
+		2: {ID: 2, LoginID: "login-id2@example.com"},
+		3: {ID: 3, LoginID: "login-id3@example.com"},
 	},
 	nextID: 4,
 }
@@ -51,11 +51,11 @@ func (us *UserStore) Find(id ID) (*User, bool) {
 	return user, exists
 }
 
-func (us *UserStore) FindByTelephone(tel string) (*User, bool) {
+func (us *UserStore) FindByLoginID(loginID string) (*User, bool) {
 	us.Lock()
 	defer us.Unlock()
 	for _, user := range us.users {
-		if user.Telephone == tel {
+		if user.LoginID == loginID {
 			return user, true
 		}
 	}

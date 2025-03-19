@@ -23,6 +23,7 @@
         <p>Do you want to logout right now?</p>
     {{ end }}
     <form action="{{ .Action }}" method="POST">
+        {{ .csrfField }}
         <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
         <input type="hidden" name="challenge" value="{{ .Challenge }}">
         <input type="submit" id="accept" name="submit" value="Yes">

@@ -24,3 +24,10 @@ func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
 		"Action":       "/clients",
 	})
 }
+
+func (c *HomeController) Error(w http.ResponseWriter, r *http.Request) {
+	detail := r.URL.Query().Get("detail")
+	renderTemplate(w, "error.html", map[string]interface{}{
+		"Detail": detail,
+	})
+}
