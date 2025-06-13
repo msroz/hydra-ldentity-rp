@@ -34,6 +34,13 @@ func (s *HydraService) GetLoginRequest(ctx context.Context, challenge string) (*
 func (s *HydraService) AcceptLogin(ctx context.Context, challenge string, subject string) (string, error) {
 	client := s.client()
 	hydraReq := hydra.NewAcceptOAuth2LoginRequest(subject)
+	hydraReq.Remember = pointer(true)
+	rememberFor := int64(3600)
+	hydraReq.RememberFor = &rememberFor
+	hydraReq.Acr = pointer("fake_acr")
+	hydraReq.Context = map[string]interface{}{
+		"accept_login_request_context": "hello",
+	}
 	resp, _, err := client.OAuth2API.AcceptOAuth2LoginRequest(ctx).LoginChallenge(challenge).AcceptOAuth2LoginRequest(*hydraReq).Execute()
 	if err != nil {
 		return "", err

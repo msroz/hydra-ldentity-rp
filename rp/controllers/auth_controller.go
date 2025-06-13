@@ -74,25 +74,32 @@ func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
 	authZReqWithPromptLoginURL := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "login")
 	authZReqWithPromptRegistrationURL := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "registration")
 	authZReqWithPromptNoneURL := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "none")
+	authZReqWithoutPrompt := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "")
 
 	renderTemplate(w, "initiate.html", map[string]interface{}{
 		"AuthZReqWithPromptLoginURL":        authZReqWithPromptLoginURL,
 		"AuthZReqWithPromptRegistrationURL": authZReqWithPromptRegistrationURL,
 		"AuthZReqWithPromptNoneURL":         authZReqWithPromptNoneURL,
+		"AuthZReqWithoutPrompt":             authZReqWithoutPrompt,
 	})
 }
 
 func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChallenge, prompt string) string {
+	if prompt == "" {
+		return conf.AuthCodeURL(
+			state,
+			oauth2.SetAuthURLParam("nonce", nonce),
+			oauth2.SetAuthURLParam("prompt", prompt),
+			oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		)
+	}
 	return conf.AuthCodeURL(
 		state,
-		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("nonce", nonce),
 		oauth2.SetAuthURLParam("prompt", prompt),
-		oauth2.SetAuthURLParam("max_age", "0"),
-		oauth2.SetAuthURLParam("rp", "hydra-identity-provider"),
 		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
 	)
 }
 
@@ -131,20 +138,27 @@ func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state := r.URL.Query().Get("state")
-	reqSession, _ := store.Get(r, authZReqSessionName)
-	if reqSession.IsNew {
-		fmt.Printf("session not found\n")
+	reqSession, err := store.Get(r, authZReqSessionName)
+	if err != nil {
+		fmt.Printf("failed to get session: %s\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	/*
+		state := r.URL.Query().Get("state")
+			if reqSession.IsNew {
+				fmt.Printf("session not found\n")
+				w.WriteHeader(http.StatusInternalServerError)
+				eturn
+			}
 
-	if err := c.validateState(state, reqSession); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "state validation error: %v\n", err)
-		errorMsg := url.QueryEscape(fmt.Sprintf("state validation error: %v, reqSession: %v, state: %v", err, reqSession, state))
-		http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
-		return
-	}
+				if err := c.validateState(state, reqSession); err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "state validation error: %v\n", err)
+					errorMsg := url.QueryEscape(fmt.Sprintf("state validation error: %v, reqSession: %v, state: %v", err, reqSession, state))
+					http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
+					return
+				}
+	*/
 
 	code := r.URL.Query().Get("code")
 	codeVerifier := reqSession.Values["code_verifier"].(string)

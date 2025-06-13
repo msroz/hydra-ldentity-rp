@@ -45,15 +45,26 @@ func (c *AuthController) LoginForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	loggedInUserID := ""
+	session, _ := c.store.Get(r, "identity_login_session")
+	if session != nil && session.Values["user_id"] != nil {
+		loggedInUserID = session.Values["user_id"].(string)
+	}
+
+	fmt.Printf("[Identity] LoginForm ==========================> respGetLoginReq.Skip: %v\n", respGetLoginReq.Skip)
 	if respGetLoginReq.Skip {
-		redirectTo, err := c.hydraService.AcceptLogin(ctx, challenge, respGetLoginReq.Subject)
-		if err != nil {
-			errorMsg := url.QueryEscape(fmt.Sprintf("Failed to accept login request: %v", err))
-			http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
+		if loggedInUserID != "" && loggedInUserID == respGetLoginReq.Subject {
+			redirectTo, err := c.hydraService.AcceptLogin(ctx, challenge, respGetLoginReq.Subject)
+			if err != nil {
+				errorMsg := url.QueryEscape(fmt.Sprintf("Failed to accept login request: %v", err))
+				http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
+				return
+			}
+			http.Redirect(w, r, redirectTo, http.StatusFound)
 			return
 		}
-		http.Redirect(w, r, redirectTo, http.StatusFound)
-		return
+
+		// TODO: prompt=noneの場合は、Rejectしてlogin_requiredを返すのが妥当。
 	}
 
 	parsedUrl, _ := url.Parse(respGetLoginReq.GetRequestUrl())
@@ -112,7 +123,7 @@ func (c *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, _ := c.store.Get(r, "identity_login_session")
-	session.Values["user_id"] = int(user.ID)
+	session.Values["user_id"] = fmt.Sprintf("%d", user.ID)
 	if err := session.Save(r, w); err != nil {
 		errorMsg := url.QueryEscape(fmt.Sprintf("Failed to save session: %v", err))
 		http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
@@ -147,9 +158,11 @@ func (c *AuthController) ConsentForm(w http.ResponseWriter, r *http.Request) {
 
 	skipConsent := false
 	if consentRequest.Skip != nil {
+		fmt.Printf("[Identity] ConsentForm ==========================> consentRequest.Skip: %v\n", *consentRequest.Skip)
 		skipConsent = *consentRequest.Skip
 	}
-	if consentRequest.Client.SkipConsent != nil {
+	if !skipConsent && consentRequest.Client.SkipConsent != nil {
+		fmt.Printf("[Identity] ConsentForm ==========================> consentRequest.Client.SkipConsent: %v\n", *consentRequest.Client.SkipConsent)
 		skipConsent = *consentRequest.Client.SkipConsent
 	}
 
