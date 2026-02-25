@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	// 鍵を保存するディレクトリ
 	keysDir := "keys"
 
@@ -67,7 +69,7 @@ func main() {
 		log.Fatalf("秘密鍵JWKの保存に失敗しました: %v", err)
 	}
 
-	fmt.Printf("JWKファイルが '%s' および '%s' に保存されました。\n", publicJWKPath, privateJWKPath)
+	slog.Info("JWK files saved", "public", publicJWKPath, "private", privateJWKPath)
 }
 
 // saveJWKはJWKを指定されたパスに保存するヘルパー関数です。

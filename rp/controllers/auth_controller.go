@@ -6,13 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"html/template"
+	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"rp/auth"
-	"rp/config"
 	"rp/model"
+	"rp/view"
 	"strconv"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/ory/x/randx"
 	"github.com/ory/x/urlx"
-	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
 
@@ -31,30 +29,35 @@ const (
 	authZReqSessionName = "rp_authz_req_session"
 )
 
-var store = sessions.NewCookieStore([]byte("keep-session-store-key-secret"))
+type AuthController struct {
+	store       *sessions.CookieStore
+	oauth2Conf  oauth2.Config
+	tmplService *view.TemplateService
+}
 
-type AuthController struct{}
-
-func NewAuthController() *AuthController {
-	return &AuthController{}
+func NewAuthController(store *sessions.CookieStore, oauth2Conf oauth2.Config, tmplService *view.TemplateService) *AuthController {
+	return &AuthController{
+		store:       store,
+		oauth2Conf:  oauth2Conf,
+		tmplService: tmplService,
+	}
 }
 
 func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
-	conf := config.GetOAuth2Config()
 	state, err := randx.RuneSequence(24, randx.AlphaLower)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Unable to generate state: %s\n", err)
+		slog.Error("unable to generate state", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	nonce, err := randx.RuneSequence(24, randx.AlphaLower)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Unable to generate nonce: %s\n", err)
+		slog.Error("unable to generate nonce", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	reqSession, _ := store.Get(r, authZReqSessionName)
+	reqSession, _ := c.store.Get(r, authZReqSessionName)
 
 	stateStr := string(state)
 	nonceStr := string(nonce)
@@ -71,12 +74,12 @@ func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
 
 	reqSession.Save(r, w)
 
-	authZReqWithPromptLoginURL := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "login")
-	authZReqWithPromptRegistrationURL := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "registration")
-	authZReqWithPromptNoneURL := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "none")
-	authZReqWithoutPrompt := c.buildAuthURL(conf, stateStr, nonceStr, codeChallenge, "")
+	authZReqWithPromptLoginURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login")
+	authZReqWithPromptRegistrationURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "registration")
+	authZReqWithPromptNoneURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "none")
+	authZReqWithoutPrompt := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "")
 
-	renderTemplate(w, "initiate.html", map[string]interface{}{
+	c.tmplService.RenderTemplate(w, "initiate.html", map[string]interface{}{
 		"AuthZReqWithPromptLoginURL":        authZReqWithPromptLoginURL,
 		"AuthZReqWithPromptRegistrationURL": authZReqWithPromptRegistrationURL,
 		"AuthZReqWithPromptNoneURL":         authZReqWithPromptNoneURL,
@@ -104,9 +107,8 @@ func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChal
 }
 
 func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) {
-	conf := config.GetOAuth2Config()
 	state := "DUMMY"
-	authZReqWithPromptLoginURL := conf.AuthCodeURL(
+	authZReqWithPromptLoginURL := c.oauth2Conf.AuthCodeURL(
 		state,
 		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("prompt", "login"),
@@ -114,7 +116,7 @@ func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) 
 		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
 	)
 
-	authZReqWithPromptRegistrationURL := conf.AuthCodeURL(
+	authZReqWithPromptRegistrationURL := c.oauth2Conf.AuthCodeURL(
 		state,
 		oauth2.SetAuthURLParam("audience", ""),
 		oauth2.SetAuthURLParam("prompt", "registration"),
@@ -138,12 +140,12 @@ func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
 	errDesc := query.Get("error_description")
 
 	var codeVerifier string
-	reqSession, err := store.Get(r, authZReqSessionName)
+	reqSession, err := c.store.Get(r, authZReqSessionName)
 	if err == nil && reqSession.Values["code_verifier"] != nil {
 		codeVerifier = reqSession.Values["code_verifier"].(string)
 	}
 
-	renderTemplate(w, "callback_params.html", map[string]interface{}{
+	c.tmplService.RenderTemplate(w, "callback_params.html", map[string]interface{}{
 		"Code":             code,
 		"State":            state,
 		"Scope":            scope,
@@ -158,26 +160,34 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 
 	code := r.FormValue("code")
 
-	reqSession, err := store.Get(r, authZReqSessionName)
+	reqSession, err := c.store.Get(r, authZReqSessionName)
 	if err != nil {
-		fmt.Printf("failed to get session: %s\n", err)
+		slog.Error("failed to get session", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	codeVerifier := reqSession.Values["code_verifier"].(string)
-	conf := config.GetOAuth2Config()
+	codeVerifierVal := reqSession.Values["code_verifier"]
+	if codeVerifierVal == nil {
+		http.Error(w, "code_verifier not found in session", http.StatusBadRequest)
+		return
+	}
+	codeVerifier, ok := codeVerifierVal.(string)
+	if !ok {
+		http.Error(w, "invalid code_verifier in session", http.StatusInternalServerError)
+		return
+	}
 
-	tokens, err := auth.TokenRequestWithPrivateKeyJwt(conf, code, codeVerifier)
+	tokens, err := auth.TokenRequestWithPrivateKeyJwt(c.oauth2Conf, code, codeVerifier)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Unable to exchange code for token: %s\n", err)
+		slog.Error("unable to exchange code for token", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	set, err := c.fetchJWKs(ctx)
 	if err != nil {
-		fmt.Printf("failed to fetch JWKS: %s\n", err)
+		slog.Error("failed to fetch JWKS", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -185,13 +195,13 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 	idTokenStr := tokens.Extra("id_token").(string)
 	verifiedToken, err := jwt.ParseString(idTokenStr, jwt.WithKeySet(set, jws.WithRequireKid(true)))
 	if err != nil {
-		fmt.Printf("failed to verify JWS: %s\n", err)
+		slog.Error("failed to verify JWS", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	if err := c.validateNonce(verifiedToken, reqSession); err != nil {
-		fmt.Printf("nonce validation error: %v\n", err)
+		slog.Error("nonce validation error", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -209,7 +219,7 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 
 	loginSession, _ := r.Cookie(loginSessionName)
 	idTokenPayload, _ := json.MarshalIndent(verifiedToken, "", "  ")
-	renderTemplate(w, "callback.html", map[string]interface{}{
+	c.tmplService.RenderTemplate(w, "callback.html", map[string]interface{}{
 		"AccessToken":    tokens.AccessToken,
 		"RefreshToken":   tokens.RefreshToken,
 		"Expiry":         tokens.Expiry.Format(time.RFC1123),
@@ -245,7 +255,7 @@ func (c *AuthController) validateNonce(token jwt.Token, session *sessions.Sessio
 }
 
 func (c *AuthController) createLoginSession(w http.ResponseWriter, r *http.Request, user *model.User) error {
-	session, _ := store.Get(r, loginSessionName)
+	session, _ := c.store.Get(r, loginSessionName)
 	session.Values["user_id"] = int(user.ID)
 	return session.Save(r, w)
 }
@@ -265,10 +275,10 @@ func (c *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
 	u = urlx.SetQuery(u, url.Values{
 		"id_token_hint":            []string{usr.IDToken},
 		"post_logout_redirect_uri": []string{"http://127.0.0.1:7777/logout_callback"},
-		"client_id":                []string{config.GetOAuth2Config().ClientID},
+		"client_id":                []string{c.oauth2Conf.ClientID},
 	})
 
-	renderTemplate(w, "logout.html", map[string]interface{}{
+	c.tmplService.RenderTemplate(w, "logout.html", map[string]interface{}{
 		"LogoutURL": u.String(),
 		"Error":     err,
 	})
@@ -276,14 +286,14 @@ func (c *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
 
 func (c *AuthController) LogoutCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
-	fmt.Printf("state: %s\n", state)
+	slog.Debug("logout callback", "state", state)
 	// TODO: Check state
 
-	session, _ := store.Get(r, loginSessionName)
+	session, _ := c.store.Get(r, loginSessionName)
 	session.Options.MaxAge = -1
 	session.Save(r, w)
 
-	renderTemplate(w, "complete_logout.html", map[string]interface{}{})
+	c.tmplService.RenderTemplate(w, "complete_logout.html", map[string]interface{}{})
 }
 
 func (c *AuthController) BackchannelLogout(w http.ResponseWriter, r *http.Request) {
@@ -293,48 +303,35 @@ func (c *AuthController) BackchannelLogout(w http.ResponseWriter, r *http.Reques
 	logoutToken := r.FormValue("logout_token")
 	set, err := c.fetchJWKs(ctx)
 	if err != nil {
-		fmt.Printf("failed to fetch JWKS: %s\n", err)
+		slog.Error("failed to fetch JWKS", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	verifiedToken, err := jwt.ParseString(logoutToken, jwt.WithKeySet(set, jws.WithRequireKid(true)))
 	if err != nil {
-		fmt.Printf("failed to verify JWS: %s\n", err)
+		slog.Error("failed to verify JWS", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	s, exist := verifiedToken.Get("sid")
 	if !exist {
-		fmt.Printf("sid not found\n")
+		slog.Error("sid not found in logout token")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	sid, ok := s.(string)
 	if !ok {
-		fmt.Printf("sid is not string\n")
+		slog.Error("sid is not string in logout token")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Printf("backchannelLogout > sid: %s\n", sid)
+	slog.Info("backchannel logout completed", "sid", sid)
 	w.WriteHeader(http.StatusOK)
 }
 
 func (c *AuthController) fetchJWKs(ctx context.Context) (jwk.Set, error) {
 	return jwk.Fetch(ctx, "http://hydra:8888/.well-known/jwks.json")
-}
-
-func renderTemplate(w http.ResponseWriter, id string, d interface{}) bool {
-	t, err := template.New(id).ParseFiles("./templates/" + id)
-	if err != nil {
-		http.Error(w, errors.Wrap(err, "Could not render template").Error(), http.StatusInternalServerError)
-		return false
-	}
-	if err := t.Execute(w, d); err != nil {
-		http.Error(w, errors.Wrap(err, "Could not render template").Error(), http.StatusInternalServerError)
-		return false
-	}
-	return true
 }

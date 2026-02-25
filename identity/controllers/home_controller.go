@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"fmt"
 	"idp/model"
 	"idp/view"
+	"log/slog"
 	"net/http"
 )
 
@@ -32,8 +32,7 @@ func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
 
 func (c *HomeController) Error(w http.ResponseWriter, r *http.Request) {
 	detail := r.URL.Query().Get("detail")
-	fmt.Println("query", r.URL.Query())
-	fmt.Println("detail", detail)
+	slog.Debug("error page", "query", r.URL.Query(), "detail", detail)
 	c.tmplService.RenderTemplate(w, "error.html", map[string]interface{}{
 		"Detail": detail,
 	})

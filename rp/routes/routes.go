@@ -3,17 +3,20 @@ package routes
 import (
 	"net/http"
 	"rp/controllers"
+	"rp/view"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/sessions"
+	"golang.org/x/oauth2"
 )
 
 // SetupRoutes configures all the routes for the application
-func SetupRoutes() *chi.Mux {
+func SetupRoutes(store *sessions.CookieStore, oauth2Conf oauth2.Config, tmplService *view.TemplateService) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Initialize controllers
-	homeController := controllers.NewHomeController()
-	authController := controllers.NewAuthController()
+	homeController := controllers.NewHomeController(tmplService)
+	authController := controllers.NewAuthController(store, oauth2Conf, tmplService)
 	clientController := controllers.NewClientController()
 
 	// Static files

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"idp/model"
 	"idp/view"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -51,7 +52,7 @@ func (c *AuthController) LoginForm(w http.ResponseWriter, r *http.Request) {
 		loggedInUserID = session.Values["user_id"].(string)
 	}
 
-	fmt.Printf("[Identity] LoginForm ==========================> respGetLoginReq.Skip: %v\n", respGetLoginReq.Skip)
+	slog.Debug("LoginForm", "skip", respGetLoginReq.Skip)
 	if respGetLoginReq.Skip {
 		if loggedInUserID != "" && loggedInUserID == respGetLoginReq.Subject {
 			redirectTo, err := c.hydraService.AcceptLogin(ctx, challenge, respGetLoginReq.Subject)
@@ -158,11 +159,11 @@ func (c *AuthController) ConsentForm(w http.ResponseWriter, r *http.Request) {
 
 	skipConsent := false
 	if consentRequest.Skip != nil {
-		fmt.Printf("[Identity] ConsentForm ==========================> consentRequest.Skip: %v\n", *consentRequest.Skip)
+		slog.Debug("ConsentForm", "skip", *consentRequest.Skip)
 		skipConsent = *consentRequest.Skip
 	}
 	if !skipConsent && consentRequest.Client.SkipConsent != nil {
-		fmt.Printf("[Identity] ConsentForm ==========================> consentRequest.Client.SkipConsent: %v\n", *consentRequest.Client.SkipConsent)
+		slog.Debug("ConsentForm", "client_skip_consent", *consentRequest.Client.SkipConsent)
 		skipConsent = *consentRequest.Client.SkipConsent
 	}
 
@@ -292,7 +293,7 @@ func (c *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *AuthController) PostLogout(w http.ResponseWriter, r *http.Request) {
-	fmt.Print("[Identity]==========================> postLogout called\n")
+	slog.Info("postLogout called")
 }
 
 func (c *AuthController) TokenHook(w http.ResponseWriter, r *http.Request) {

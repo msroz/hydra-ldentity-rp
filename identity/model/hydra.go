@@ -2,8 +2,8 @@ package model
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -181,15 +181,14 @@ func (s *HydraService) RejectLogout(ctx context.Context, challenge string) error
 }
 
 func (s *HydraService) HandleTokenHook(w http.ResponseWriter, r *http.Request) {
-	fmt.Print("[Identity]==========================> tokenHook called \n")
+	slog.Info("tokenHook called")
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	path := r.URL.Path
-	fmt.Printf("[IdP / Token Hook / %s] ======> Received JSON: %s\n", path, string(body))
+	slog.Debug("TokenHook received", "path", r.URL.Path, "body", string(body))
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"idp/routes"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -30,6 +31,8 @@ func init() {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
 	r := chi.NewRouter()
 
 	// Setup CSRF protection

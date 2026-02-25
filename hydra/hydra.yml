@@ -1,4 +1,7 @@
 # See: https://www.ory.sh/docs/hydra/reference/configuration
+log:
+  format: json
+
 serve:
   cookies:
     same_site_mode: Lax

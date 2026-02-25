@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,7 +28,7 @@ func TokenRequestWithPrivateKeyJwt(config oauth2.Config, code string, codeVerifi
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate client assertion: %w", err)
 	}
-	log.Printf("client assertion jwt: %s", clientAssertion)
+	slog.Debug("client assertion generated")
 
 	client := &http.Client{}
 	data := url.Values{}
@@ -40,7 +40,7 @@ func TokenRequestWithPrivateKeyJwt(config oauth2.Config, code string, codeVerifi
 	data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
 	data.Set("client_assertion", clientAssertion)
 
-	log.Printf("token request body: %s", data.Encode())
+	slog.Debug("token request prepared")
 
 	req, err := http.NewRequest("POST", config.Endpoint.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
