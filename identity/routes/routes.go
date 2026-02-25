@@ -17,7 +17,10 @@ func Setup(r *chi.Mux, store *sessions.CookieStore, hydraAdminURL string) {
 
 	// Initialize controllers
 	homeController := controllers.NewHomeController(tmplService)
-	authController := controllers.NewAuthController(store, hydraService, tmplService)
+	loginController := controllers.NewLoginController(store, hydraService, tmplService)
+	consentController := controllers.NewConsentController(hydraService, tmplService)
+	logoutController := controllers.NewLogoutController(hydraService, tmplService)
+	hookController := controllers.NewHookController(hydraService)
 
 	// Static files
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
@@ -26,15 +29,15 @@ func Setup(r *chi.Mux, store *sessions.CookieStore, hydraAdminURL string) {
 	r.Get("/", homeController.Home)
 	r.Get("/error", homeController.Error)
 
-	r.Get("/login", authController.LoginForm)
-	r.Post("/login", authController.Login)
+	r.Get("/login", loginController.LoginForm)
+	r.Post("/login", loginController.Login)
 
-	r.Get("/consent", authController.ConsentForm)
-	r.Post("/consent", authController.Consent)
+	r.Get("/consent", consentController.ConsentForm)
+	r.Post("/consent", consentController.Consent)
 
-	r.Get("/post_logout", authController.PostLogout)
-	r.Get("/logout", authController.LogoutForm)
-	r.Post("/logout", authController.Logout)
+	r.Get("/post_logout", logoutController.PostLogout)
+	r.Get("/logout", logoutController.LogoutForm)
+	r.Post("/logout", logoutController.Logout)
 
-	r.Post("/refresh_token_hook", authController.TokenHook)
+	r.Post("/refresh_token_hook", hookController.TokenHook)
 }

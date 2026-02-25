@@ -1,26 +1,21 @@
 package controllers
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"net/url"
 	"rp/auth"
+	"rp/httputil"
 	"rp/model"
 	"rp/view"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/sessions"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/ory/x/randx"
-	"github.com/ory/x/urlx"
 	"golang.org/x/oauth2"
 )
 
@@ -46,14 +41,12 @@ func NewAuthController(store *sessions.CookieStore, oauth2Conf oauth2.Config, tm
 func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
 	state, err := randx.RuneSequence(24, randx.AlphaLower)
 	if err != nil {
-		slog.Error("unable to generate state", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "unable to generate state", http.StatusInternalServerError, err)
 		return
 	}
 	nonce, err := randx.RuneSequence(24, randx.AlphaLower)
 	if err != nil {
-		slog.Error("unable to generate nonce", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "unable to generate nonce", http.StatusInternalServerError, err)
 		return
 	}
 
@@ -62,11 +55,8 @@ func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
 	stateStr := string(state)
 	nonceStr := string(nonce)
 
-	// state - CSRF protection
 	reqSession.Values["state"] = stateStr
-	// nonce - replay attack protection
 	reqSession.Values["nonce"] = nonceStr
-	// PKCE - 認可コード横取り対策
 	codeVerifier, _ := randx.RuneSequence(64, randx.AlphaLower)
 	converted := sha256.Sum256([]byte(string(codeVerifier)))
 	codeChallenge := base64.RawURLEncoding.EncodeToString(converted[:])
@@ -162,47 +152,42 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 
 	reqSession, err := c.store.Get(r, authZReqSessionName)
 	if err != nil {
-		slog.Error("failed to get session", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "failed to get session", http.StatusInternalServerError, err)
 		return
 	}
 
 	codeVerifierVal := reqSession.Values["code_verifier"]
 	if codeVerifierVal == nil {
-		http.Error(w, "code_verifier not found in session", http.StatusBadRequest)
+		httputil.HandleError(w, "code_verifier not found in session", http.StatusBadRequest, nil)
 		return
 	}
 	codeVerifier, ok := codeVerifierVal.(string)
 	if !ok {
-		http.Error(w, "invalid code_verifier in session", http.StatusInternalServerError)
+		httputil.HandleError(w, "invalid code_verifier in session", http.StatusInternalServerError, nil)
 		return
 	}
 
 	tokens, err := auth.TokenRequestWithPrivateKeyJwt(c.oauth2Conf, code, codeVerifier)
 	if err != nil {
-		slog.Error("unable to exchange code for token", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "unable to exchange code for token", http.StatusInternalServerError, err)
 		return
 	}
 
-	set, err := c.fetchJWKs(ctx)
+	set, err := auth.FetchHydraJWKs(ctx)
 	if err != nil {
-		slog.Error("failed to fetch JWKS", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "failed to fetch JWKS", http.StatusInternalServerError, err)
 		return
 	}
 
 	idTokenStr := tokens.Extra("id_token").(string)
 	verifiedToken, err := jwt.ParseString(idTokenStr, jwt.WithKeySet(set, jws.WithRequireKid(true)))
 	if err != nil {
-		slog.Error("failed to verify JWS", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "failed to verify JWS", http.StatusInternalServerError, err)
 		return
 	}
 
 	if err := c.validateNonce(verifiedToken, reqSession); err != nil {
-		slog.Error("nonce validation error", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		httputil.HandleError(w, "nonce validation error", http.StatusInternalServerError, err)
 		return
 	}
 
@@ -213,7 +198,7 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 	user := model.Store.FindOrCreateBySubject(&model.User{Subject: sub, IDToken: idTokenStr})
 
 	if err := c.createLoginSession(w, r, user); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to save session: %v", err), http.StatusInternalServerError)
+		httputil.HandleError(w, "failed to save session", http.StatusInternalServerError, err)
 		return
 	}
 
@@ -227,14 +212,6 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 		"IDTokenPayload": string(idTokenPayload),
 		"LoginSession":   loginSession,
 	})
-}
-
-func (c *AuthController) validateState(state string, session *sessions.Session) error {
-	stateInSession := session.Values["state"].(string)
-	if state != stateInSession {
-		return fmt.Errorf("state not match")
-	}
-	return nil
 }
 
 func (c *AuthController) validateNonce(token jwt.Token, session *sessions.Session) error {
@@ -258,80 +235,4 @@ func (c *AuthController) createLoginSession(w http.ResponseWriter, r *http.Reque
 	session, _ := c.store.Get(r, loginSessionName)
 	session.Values["user_id"] = int(user.ID)
 	return session.Save(r, w)
-}
-
-func (c *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	id, _ := strconv.Atoi(query.Get("id"))
-
-	usr, exist := model.Store.Find(model.ID(id))
-	err := ""
-	if !exist {
-		err = "User not found"
-	}
-
-	hydraAuthZReqURL := url.URL{Scheme: "http", Host: "127.0.0.1:8888"}
-	u := urlx.AppendPaths(&hydraAuthZReqURL, "/oauth2/sessions/logout")
-	u = urlx.SetQuery(u, url.Values{
-		"id_token_hint":            []string{usr.IDToken},
-		"post_logout_redirect_uri": []string{"http://127.0.0.1:7777/logout_callback"},
-		"client_id":                []string{c.oauth2Conf.ClientID},
-	})
-
-	c.tmplService.RenderTemplate(w, "logout.html", map[string]interface{}{
-		"LogoutURL": u.String(),
-		"Error":     err,
-	})
-}
-
-func (c *AuthController) LogoutCallback(w http.ResponseWriter, r *http.Request) {
-	state := r.URL.Query().Get("state")
-	slog.Debug("logout callback", "state", state)
-	// TODO: Check state
-
-	session, _ := c.store.Get(r, loginSessionName)
-	session.Options.MaxAge = -1
-	session.Save(r, w)
-
-	c.tmplService.RenderTemplate(w, "complete_logout.html", map[string]interface{}{})
-}
-
-func (c *AuthController) BackchannelLogout(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	r.ParseForm()
-
-	logoutToken := r.FormValue("logout_token")
-	set, err := c.fetchJWKs(ctx)
-	if err != nil {
-		slog.Error("failed to fetch JWKS", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	verifiedToken, err := jwt.ParseString(logoutToken, jwt.WithKeySet(set, jws.WithRequireKid(true)))
-	if err != nil {
-		slog.Error("failed to verify JWS", "err", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	s, exist := verifiedToken.Get("sid")
-	if !exist {
-		slog.Error("sid not found in logout token")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	sid, ok := s.(string)
-	if !ok {
-		slog.Error("sid is not string in logout token")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	slog.Info("backchannel logout completed", "sid", sid)
-	w.WriteHeader(http.StatusOK)
-}
-
-func (c *AuthController) fetchJWKs(ctx context.Context) (jwk.Set, error) {
-	return jwk.Fetch(ctx, "http://hydra:8888/.well-known/jwks.json")
 }

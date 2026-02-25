@@ -14,6 +14,7 @@ var (
 	hydraAuthZReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_AUTHZ_REQUEST_HOST", "127.0.0.1:8888")} // from RP UA to Hydra
 	hydraTokenReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_TOKEN_REQUEST_HOST", "hydra:8888")}     // from RP Server to Hydra
 	redirectURL      = env.Getenv("REDIRECT_URL", fmt.Sprintf("http://127.0.0.1:%s/callback", port))
+	logoutCallbackURL  = env.Getenv("LOGOUT_CALLBACK_URL", fmt.Sprintf("http://127.0.0.1:%s/logout_callback", port))
 
 	oauth2Conf oauth2.Config
 )
@@ -40,4 +41,19 @@ func LoadOAuth2Config(id, secret string) {
 // GetPort returns the configured port
 func GetPort() string {
 	return port
+}
+
+// GetHydraSessionsLogoutURL returns the Hydra sessions logout URL (for UA-initiated logout)
+func GetHydraSessionsLogoutURL() string {
+	return urlx.AppendPaths(&hydraAuthZReqURL, "/oauth2/sessions/logout").String()
+}
+
+// GetHydraJWKSetURL returns the Hydra JWKS URL (for server-side JWK fetch)
+func GetHydraJWKSetURL() string {
+	return urlx.AppendPaths(&hydraTokenReqURL, "/.well-known/jwks.json").String()
+}
+
+// GetLogoutCallbackURL returns the post-logout redirect URI
+func GetLogoutCallbackURL() string {
+	return logoutCallbackURL
 }

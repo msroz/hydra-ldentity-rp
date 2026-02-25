@@ -3,8 +3,7 @@ package view
 import (
 	"html/template"
 	"net/http"
-
-	"github.com/pkg/errors"
+	"rp/httputil"
 )
 
 type TemplateService struct {
@@ -20,12 +19,12 @@ func NewTemplateService(templatesDir string) *TemplateService {
 func (s *TemplateService) RenderTemplate(w http.ResponseWriter, id string, data interface{}) bool {
 	t, err := template.New(id).ParseFiles(s.templatesDir + "/" + id)
 	if err != nil {
-		http.Error(w, errors.Wrap(err, "Could not render template").Error(), http.StatusInternalServerError)
+		httputil.HandleError(w, "could not render template", http.StatusInternalServerError, err)
 		return false
 	}
 
 	if err := t.Execute(w, data); err != nil {
-		http.Error(w, errors.Wrap(err, "Could not render template").Error(), http.StatusInternalServerError)
+		httputil.HandleError(w, "could not render template", http.StatusInternalServerError, err)
 		return false
 	}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"idp/config"
 	"idp/routes"
 	"log"
 	"log/slog"
@@ -10,24 +11,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
-	"github.com/ory/common/env"
 )
 
-const (
-	port             = "3000"
-	loginSessionName = "identity_login_session"
-)
-
-var (
-	hydraAdminURL string
-	store         = sessions.NewCookieStore([]byte("keep-session-store-key-secret"))
-)
+var store = sessions.NewCookieStore([]byte("keep-session-store-key-secret"))
 
 func init() {
-	hydraAdminURL = os.Getenv("HYDRA_ADMIN_URL")
-	if hydraAdminURL == "" {
-		log.Fatal("HYDRA_ADMIN_URL environment variable not set")
-	}
+	config.Load()
 }
 
 func main() {
@@ -43,8 +32,9 @@ func main() {
 	r.Use(csrfMiddleware)
 
 	// Setup routes
-	routes.Setup(r, store, hydraAdminURL)
+	routes.Setup(r, store, config.GetHydraAdminURL())
 
-	log.Println("Listening on :" + env.Getenv("PORT", port))
-	log.Fatal(http.ListenAndServe(":"+env.Getenv("PORT", port), r))
+	port := config.GetPort()
+	log.Println("Listening on :" + port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }

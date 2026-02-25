@@ -20,11 +20,9 @@ import (
 )
 
 // config, codeを受け取ってID Tokenを返す
-func TokenRequestWithPrivateKeyJwt(config oauth2.Config, code string, codeVerifier string) (*oauth2.Token, error) {
-	// configの値を渡すとhttp://hydra:4444/oauth2/tokenになってエラーになっちゃう
-	tokenUrl := "http://127.0.0.1:8888/oauth2/token"
-
-	clientAssertion, err := generateClientAssertion(config.ClientID, tokenUrl)
+func TokenRequestWithPrivateKeyJwt(oauth2Config oauth2.Config, code string, codeVerifier string) (*oauth2.Token, error) {
+	aud := "http://127.0.0.1:8888/oauth2/token"
+	clientAssertion, err := generateClientAssertion(oauth2Config.ClientID, aud)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate client assertion: %w", err)
 	}
@@ -33,16 +31,16 @@ func TokenRequestWithPrivateKeyJwt(config oauth2.Config, code string, codeVerifi
 	client := &http.Client{}
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", config.ClientID)
+	data.Set("client_id", oauth2Config.ClientID)
 	data.Set("code", code)
-	data.Set("redirect_uri", config.RedirectURL)
+	data.Set("redirect_uri", oauth2Config.RedirectURL)
 	data.Set("code_verifier", codeVerifier)
 	data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
 	data.Set("client_assertion", clientAssertion)
 
 	slog.Debug("token request prepared")
 
-	req, err := http.NewRequest("POST", config.Endpoint.TokenURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", oauth2Config.Endpoint.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token request: %w", err)
 	}

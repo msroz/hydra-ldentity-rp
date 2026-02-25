@@ -17,6 +17,7 @@ func SetupRoutes(store *sessions.CookieStore, oauth2Conf oauth2.Config, tmplServ
 	// Initialize controllers
 	homeController := controllers.NewHomeController(tmplService)
 	authController := controllers.NewAuthController(store, oauth2Conf, tmplService)
+	logoutController := controllers.NewLogoutController(store, oauth2Conf, tmplService)
 	clientController := controllers.NewClientController()
 
 	// Static files
@@ -24,15 +25,16 @@ func SetupRoutes(store *sessions.CookieStore, oauth2Conf oauth2.Config, tmplServ
 
 	// Home routes
 	r.Get("/", homeController.Home)
-	r.Get("/error", homeController.Error)
 
 	// Auth routes
 	r.Get("/initiate", authController.Initiate)
 	r.Get("/callback", authController.Callback)
 	r.Post("/token_exchange", authController.TokenExchange)
-	r.Get("/logout", authController.Logout)
-	r.Get("/logout_callback", authController.LogoutCallback)
-	r.Post("/backchannel_logout", authController.BackchannelLogout)
+
+	// Logout routes
+	r.Get("/logout", logoutController.Logout)
+	r.Get("/logout_callback", logoutController.LogoutCallback)
+	r.Post("/backchannel_logout", logoutController.BackchannelLogout)
 
 	// Native app routes
 	r.Get("/native/initiate", authController.InitiateNative)

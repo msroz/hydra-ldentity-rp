@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"rp/config"
+	"rp/httputil"
 
 	"github.com/ory/common/env"
 )
@@ -34,14 +35,14 @@ func (c *ClientController) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	file, err := os.Open("keys/public_key.jwk")
 	if err != nil {
-		http.Error(w, "Failed to open JWK file", http.StatusInternalServerError)
+		httputil.HandleError(w, "failed to open JWK file", http.StatusInternalServerError, err)
 		return
 	}
 	defer file.Close()
 
 	var jwkData map[string]interface{}
 	if err := json.NewDecoder(file).Decode(&jwkData); err != nil {
-		http.Error(w, "Failed to decode JWK file", http.StatusInternalServerError)
+		httputil.HandleError(w, "failed to decode JWK file", http.StatusInternalServerError, err)
 		return
 	}
 

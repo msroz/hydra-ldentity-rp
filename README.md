@@ -63,6 +63,10 @@ $ echo $code_client | jq .
   "redirect_uris": [
     "http://127.0.0.1:7777/callback"
   ],
+  "post_logout_redirect_uris": [
+    "http://127.0.0.1:7777/logout_callback"
+  ],
+  "backchannel_logout_uri": "http://rp:7777/backchannel_logout",
   "registration_access_token": "ory_at_3jX2Mv5ps_9PKm7AaoIBXlIX-ICOvX3fiepvZJFeMfA.rlp6Yp--nXeCuI9W0og9Tu0MZbNPT6Zlpt18_yBqi-g",
   "registration_client_uri": "http://127.0.0.1:4444/oauth2/register/hydra-sample-id",
   "request_object_signing_alg": "RS256",
