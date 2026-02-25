@@ -1,21 +1,18 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RP | Error</title>
-    <style>
-        body {
-            font-family: Verdana, sans-serif;
-            background-color: #E0E0E0;
-            color: #333;
-            margin: 50px;
-            padding: 0;
-            line-height: 1.6;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1 id="input-telephone-title">RP | Error</h1>
-    <p>{{ .Detail }}</p>
+    <div class="card">
+        <h1>RP | Error</h1>
+        <div class="error-msg">{{ .Detail }}</div>
+        <ul class="link-list" style="margin-top:20px;">
+            <li><a href="/">Move to Top</a></li>
+        </ul>
+    </div>
 </body>
 </html>

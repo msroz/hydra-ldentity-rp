@@ -4,6 +4,7 @@ import (
 	"idp/controllers"
 	"idp/model"
 	"idp/view"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
@@ -17,6 +18,9 @@ func Setup(r *chi.Mux, store *sessions.CookieStore, hydraAdminURL string) {
 	// Initialize controllers
 	homeController := controllers.NewHomeController(tmplService)
 	authController := controllers.NewAuthController(store, hydraService, tmplService)
+
+	// Static files
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 
 	// Routes
 	r.Get("/", homeController.Home)

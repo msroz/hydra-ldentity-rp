@@ -1,76 +1,57 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RP | Home</title>
-    <style>
-        body {
-            font-family: Verdana, sans-serif;
-            background-color: #E0E0E0;
-            color: #333;
-            margin: 50px;
-            padding: 0;
-            line-height: 1.6;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>RP | Home</h1>
+    <div class="card">
+        <h1>RP | Home</h1>
 
-    <h2>Current Client Info</h1>
-    <div>
-        <ul>
+        <h2>Current Client Info</h2>
+        <ul class="info-list">
             <li>Client ID: <code>{{ .ClientID }}</code></li>
             <li>Client Secret: <code>{{ .ClientSecret }}</code></li>
         </ul>
-    </div>
 
-    <form action="{{ .Action }}" method="POST">
-        <table>
-            <tr>
-                <td>
-                    <input type="input" id="client_id" name="client_id" value="{{ .ClientID }}" placeholder="">
-                </td>
-            </tr>
-            <tr>
-                <td>
-                    <input type="input" id="client_secret" name="client_secret" value="{{ .ClientSecret }}">
-                </td>
-            </tr>
-        </table>
-        <input type="submit" id="save" name="submit" value="Save">
-        <input type="submit" id="reset" name="submit" value="Reset">
-    </form>
+        <form action="{{ .Action }}" method="POST">
+            <label for="client_id">Client ID</label>
+            <input type="input" id="client_id" name="client_id" value="{{ .ClientID }}">
+            <label for="client_secret">Client Secret</label>
+            <input type="input" id="client_secret" name="client_secret" value="{{ .ClientSecret }}">
+            <div class="btn-group">
+                <input type="submit" id="save" name="submit" value="Save" class="btn btn-primary">
+                <input type="submit" id="reset" name="submit" value="Reset" class="btn btn-secondary">
+            </div>
+        </form>
 
-    <h2>Initiate Request</h2>
-    <p><a href="/initiate">Move to Initiate Authorize Request Page</a></p>
-
-    <h2>UserStore</h2>
-    <ul>
-        {{ if eq (len .Users) 0 }}
-            <li>No Users Found.</li>
-        {{ end }}
-        {{ range .Users }}
-            <li>
-                <a href="/logout?id={{ .ID }}">Move to Initiate Logout Request Page(ID: {{ .ID }})</a></p>
-            </li>
-        {{ end }}
-    </ul>
-
-    <h2>LoginSession</h2>
-    <p>
-        {{ .LoginSession }}
-    </p>
-
-    <h2>Others</h2>
-    <div>
-        <ul>
-            <li><a href="/.well-known/apple-app-site-association">GET /.well-known/apple-app-site-association (Universal Links)</a></li>
+        <h2>Initiate Request</h2>
+        <ul class="link-list">
+            <li><a href="/initiate">Move to Initiate Authorize Request Page</a></li>
         </ul>
-        <ul>
-            <li><a href="/callback?code=123">callback link</a></li>
+
+        <h2>User Store</h2>
+        <ul class="link-list">
+            {{ if eq (len .Users) 0 }}
+                <li>No Users Found.</li>
+            {{ end }}
+            {{ range .Users }}
+                <li><a href="/logout?id={{ .ID }}">Initiate Logout (ID: {{ .ID }})</a></li>
+            {{ end }}
         </ul>
-        <ul>
+
+        <h2>Login Session</h2>
+        {{ if .LoginSession }}
+            <div class="session-info">{{ .LoginSession }}</div>
+        {{ else }}
+            <p style="font-size:0.875rem;color:#888;">No active session</p>
+        {{ end }}
+
+        <h2>Others</h2>
+        <ul class="link-list">
+            <li><a href="/.well-known/apple-app-site-association" target="_blank" rel="noopener">GET /.well-known/apple-app-site-association</a></li>
             <li><a href="http://localhost:3000/" target="_blank">OP Top</a></li>
         </ul>
     </div>

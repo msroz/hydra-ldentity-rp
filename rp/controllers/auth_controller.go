@@ -130,13 +130,33 @@ func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if len(r.URL.Query().Get("error")) > 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "Got error: %s\n", r.URL.Query().Get("error_description"))
-		errorMsg := url.QueryEscape(fmt.Sprintf("Got error: %s", r.URL.Query().Get("error_description")))
-		http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
-		return
+	query := r.URL.Query()
+	code := query.Get("code")
+	state := query.Get("state")
+	scope := query.Get("scope")
+	errCode := query.Get("error")
+	errDesc := query.Get("error_description")
+
+	var codeVerifier string
+	reqSession, err := store.Get(r, authZReqSessionName)
+	if err == nil && reqSession.Values["code_verifier"] != nil {
+		codeVerifier = reqSession.Values["code_verifier"].(string)
 	}
+
+	renderTemplate(w, "callback_params.html", map[string]interface{}{
+		"Code":             code,
+		"State":            state,
+		"Scope":            scope,
+		"CodeVerifier":     codeVerifier,
+		"Error":            errCode,
+		"ErrorDescription": errDesc,
+	})
+}
+
+func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	code := r.FormValue("code")
 
 	reqSession, err := store.Get(r, authZReqSessionName)
 	if err != nil {
@@ -144,23 +164,7 @@ func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	/*
-		state := r.URL.Query().Get("state")
-			if reqSession.IsNew {
-				fmt.Printf("session not found\n")
-				w.WriteHeader(http.StatusInternalServerError)
-				eturn
-			}
 
-				if err := c.validateState(state, reqSession); err != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "state validation error: %v\n", err)
-					errorMsg := url.QueryEscape(fmt.Sprintf("state validation error: %v, reqSession: %v, state: %v", err, reqSession, state))
-					http.Redirect(w, r, "/error?detail="+errorMsg, http.StatusSeeOther)
-					return
-				}
-	*/
-
-	code := r.URL.Query().Get("code")
 	codeVerifier := reqSession.Values["code_verifier"].(string)
 	conf := config.GetOAuth2Config()
 
@@ -192,14 +196,12 @@ func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 認可リクエストのセッションを削除
 	reqSession.Options.MaxAge = -1
 	reqSession.Save(r, w)
 
 	sub := verifiedToken.Subject()
 	user := model.Store.FindOrCreateBySubject(&model.User{Subject: sub, IDToken: idTokenStr})
 
-	// Login sessionの発行
 	if err := c.createLoginSession(w, r, user); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to save session: %v", err), http.StatusInternalServerError)
 		return

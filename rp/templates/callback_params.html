@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RP | Callback</title>
+    <title>RP | Authorization Response</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         .copyable {
@@ -28,41 +28,40 @@
             background: #4caf50;
             color: #fff;
         }
-        pre.json {
-            background-color: #f1f8e9;
-            padding: 12px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin: 4px 0 12px;
-        }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>RP | Callback after Token Request</h1>
+        <h1>RP | Authorization Response</h1>
 
-        <h2>Access Token</h2>
-        <div class="token-value copyable" data-copy>{{ .AccessToken }}</div>
+        {{ if .Error }}
+        <h2>error</h2>
+        <div class="error-msg">{{ .Error }}</div>
 
-        <h2>Refresh Token</h2>
-        <div class="token-value copyable" data-copy>{{ .RefreshToken }}</div>
+        <h2>error_description</h2>
+        <div class="error-msg">{{ .ErrorDescription }}</div>
+        {{ end }}
 
-        <h2>Expires in</h2>
-        <div class="token-value">{{ .Expiry }}</div>
+        {{ if .State }}
+        <h2>state</h2>
+        <div class="token-value copyable" data-copy>{{ .State }}</div>
+        {{ end }}
 
-        <h2>ID Token</h2>
-        <div class="token-value copyable" data-copy>{{ .IDToken }}</div>
+        {{ if .Code }}
+        <h2>code</h2>
+        <div class="token-value copyable" data-copy>{{ .Code }}</div>
 
-        <h2>ID Token Payload</h2>
-        <div class="copyable" data-copy>
-            <pre class="json">{{ .IDTokenPayload }}</pre>
-        </div>
+        <h2>scope</h2>
+        <div class="token-value">{{ .Scope }}</div>
 
-        <h2>Login Session</h2>
-        <div class="token-value">{{ .LoginSession }}</div>
+        <h2>code_verifier (from session)</h2>
+        <div class="token-value copyable" data-copy>{{ .CodeVerifier }}</div>
+
+        <form method="POST" action="/token_exchange" style="margin-top: 20px;">
+            <input type="hidden" name="code" value="{{ .Code }}">
+            <button type="submit" class="btn btn-primary">Execute Token Request</button>
+        </form>
+        {{ end }}
 
         <ul class="link-list" style="margin-top:20px;">
             <li><a href="/">Move to Top</a></li>
@@ -74,7 +73,7 @@
             btn.className = 'copy-btn';
             btn.textContent = 'Copy';
             btn.addEventListener('click', function() {
-                var text = (el.querySelector('pre') || el).textContent.trim();
+                var text = el.textContent.trim();
                 navigator.clipboard.writeText(text).then(function() {
                     btn.textContent = 'Copied!';
                     btn.classList.add('copied');

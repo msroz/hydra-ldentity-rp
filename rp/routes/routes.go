@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"net/http"
 	"rp/controllers"
 
 	"github.com/go-chi/chi/v5"
@@ -15,6 +16,9 @@ func SetupRoutes() *chi.Mux {
 	authController := controllers.NewAuthController()
 	clientController := controllers.NewClientController()
 
+	// Static files
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+
 	// Home routes
 	r.Get("/", homeController.Home)
 	r.Get("/error", homeController.Error)
@@ -22,6 +26,7 @@ func SetupRoutes() *chi.Mux {
 	// Auth routes
 	r.Get("/initiate", authController.Initiate)
 	r.Get("/callback", authController.Callback)
+	r.Post("/token_exchange", authController.TokenExchange)
 	r.Get("/logout", authController.Logout)
 	r.Get("/logout_callback", authController.LogoutCallback)
 	r.Post("/backchannel_logout", authController.BackchannelLogout)

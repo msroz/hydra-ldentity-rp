@@ -4,30 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OP | Logout</title>
-    <style>
-        body {
-            font-family: Verdana, sans-serif;
-            background-color: #F0F0F0;
-            color: #333;
-            margin: 50px;
-            padding: 0;
-            line-height: 1.6;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1 id="login-title">OP | Logout</h1>
-    {{ if .Error }}
-        <p>{{ .Error }}</p>
-    {{ else }}
-        <p>Do you want to logout right now?</p>
-    {{ end }}
-    <form action="{{ .Action }}" method="POST">
-        {{ .csrfField }}
-        <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
-        <input type="hidden" name="challenge" value="{{ .Challenge }}">
-        <input type="submit" id="accept" name="submit" value="Yes">
-        <input type="submit" id="reject" name="submit" value="No">
-    </form>
+    <div class="card">
+        <h1>OP | Logout</h1>
+        {{ if .Error }}
+            <div class="error-msg">{{ .Error }}</div>
+        {{ else }}
+            <p>Do you want to logout right now?</p>
+        {{ end }}
+        <form action="{{ .Action }}" method="POST">
+            {{ .csrfField }}
+            <input type="hidden" name="_csrf" value="{{ .CsrfToken }}">
+            <input type="hidden" name="challenge" value="{{ .Challenge }}">
+            <div class="btn-group">
+                <input type="submit" id="accept" name="submit" value="Yes" class="btn btn-primary">
+                <input type="submit" id="reject" name="submit" value="No" class="btn btn-danger">
+            </div>
+        </form>
+    </div>
 </body>
 </html>

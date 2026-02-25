@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	hydra "github.com/ory/client-go"
 )
@@ -37,7 +38,8 @@ func (s *HydraService) AcceptLogin(ctx context.Context, challenge string, subjec
 	hydraReq.Remember = pointer(true)
 	rememberFor := int64(3600)
 	hydraReq.RememberFor = &rememberFor
-	hydraReq.Acr = pointer("fake_acr")
+	hydraReq.Acr = pointer("urn:example:loa:fake")
+	hydraReq.Amr = []string{"fake_amr"}
 	hydraReq.Context = map[string]interface{}{
 		"accept_login_request_context": "hello",
 	}
@@ -63,9 +65,10 @@ func (s *HydraService) AcceptLoginWithSession(ctx context.Context, challenge str
 	hydraReq := hydra.NewAcceptOAuth2LoginRequest(subject)
 	hydraReq.IdentityProviderSessionId = pointer(sessionID)
 	hydraReq.Remember = pointer(true)
-	rememberFor := int64(3600)
+	rememberFor := int64(5 * time.Minute)
 	hydraReq.RememberFor = &rememberFor
-	hydraReq.Acr = pointer("fake_acr")
+	hydraReq.Acr = pointer("urn:example:loa:fake")
+	hydraReq.Amr = []string{"fake_amr"}
 	hydraReq.Context = map[string]interface{}{
 		"accept_login_request_context": "hello",
 	}
@@ -163,6 +166,7 @@ func (s *HydraService) GetLogoutRequest(ctx context.Context, challenge string) (
 
 func (s *HydraService) AcceptLogout(ctx context.Context, challenge string) (string, error) {
 	client := s.client()
+
 	resp, _, err := client.OAuth2API.AcceptOAuth2LogoutRequest(ctx).LogoutChallenge(challenge).Execute()
 	if err != nil {
 		return "", err

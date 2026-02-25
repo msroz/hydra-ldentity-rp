@@ -33,7 +33,10 @@ func main() {
 	r := chi.NewRouter()
 
 	// Setup CSRF protection
-	csrfMiddleware := csrf.Protect([]byte("keep-csrf-key-secret"))
+	csrfMiddleware := csrf.Protect(
+		[]byte("keep-csrf-key-secret"),
+		csrf.TrustedOrigins([]string{"127.0.0.1:3000"}),
+	)
 	r.Use(csrfMiddleware)
 
 	// Setup routes

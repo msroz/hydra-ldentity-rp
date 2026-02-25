@@ -1,7 +1,7 @@
 version: "3.7"
 services:
   hydra:
-    image: oryd/hydra:v2.3.0
+    image: oryd/hydra:v25.4.0
     ports:
       - "8888:8888" # Public port
       - "9999:9999" # Admin port
@@ -19,7 +19,7 @@ services:
     networks:
       - idp-sample-network
   hydra-migrate:
-    image: oryd/hydra:v2.3.0
+    image: oryd/hydra:v25.4.0
     environment:
       - DSN=mysql://root:secret@tcp(mysqld:3306)/hydra?max_conns=20&max_idle_conns=4
     command: migrate -c /etc/config/hydra/hydra.yml sql -e --yes

@@ -25,3 +25,5 @@ rp/tmp/
 identity/tmp/
 
 .env
+
+.claude/
