@@ -7,9 +7,7 @@ type ID int
 type User struct {
 	ID            ID
 	Subject       string // IdPのユーザーID
-	LoginID       string // ログインID(Email)
 	EmailVerified string // ID Tokenのemail_verified claim
-	Telephone     string
 	IDToken       string
 }
 
@@ -35,13 +33,19 @@ func (us *UserStore) Create(u *User) *User {
 }
 
 func (us *UserStore) FindOrCreateBySubject(u *User) *User {
+	us.Lock()
+	defer us.Unlock()
+
 	for _, user := range us.users {
 		if user.Subject == u.Subject {
 			return user
 		}
 	}
 
-	return us.Create(u)
+	u.ID = us.nextID
+	us.nextID++
+	us.users[u.ID] = u
+	return u
 }
 
 func (us *UserStore) FindAll() []*User {

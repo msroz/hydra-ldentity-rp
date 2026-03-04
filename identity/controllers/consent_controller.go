@@ -65,7 +65,7 @@ func (c *ConsentController) ConsentForm(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	session, _ := c.store.Get(r, "identity_login_session")
+	session, _ := c.store.Get(r, identityLoginSessionName)
 	currentUser, _ := model.Store.FindBySessionValue(session.Values["user_id"])
 
 	c.tmplService.RenderTemplate(w, "consent.html", map[string]interface{}{

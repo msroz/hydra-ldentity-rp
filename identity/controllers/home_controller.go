@@ -19,7 +19,7 @@ func NewHomeController(tmplService *view.TemplateService) *HomeController {
 
 func (c *HomeController) Home(w http.ResponseWriter, r *http.Request) {
 	hydraSession, _ := r.Cookie("ory_hydra_session_dev")
-	loginSession, _ := r.Cookie("identity_login_session")
+	loginSession, _ := r.Cookie(identityLoginSessionName)
 
 	users := model.Store.FindAll()
 

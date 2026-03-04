@@ -6,8 +6,6 @@ import (
 	"os"
 	"rp/config"
 	"rp/httputil"
-
-	"github.com/ory/common/env"
 )
 
 type ClientController struct{}
@@ -47,26 +45,4 @@ func (c *ClientController) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{"keys": []interface{}{jwkData}})
-}
-
-// GetAppleAppSiteAssociation handles the Apple App Site Association endpoint
-func (c *ClientController) GetAppleAppSiteAssociation(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	data := map[string]interface{}{
-		"applinks": map[string]interface{}{
-			"app": []interface{}{},
-			"details": []map[string]interface{}{
-				{
-					"appID": env.Getenv("APPLE_APP_ID", "aaa"),
-					"paths": []string{"/callback"},
-				},
-			},
-		},
-		"webcredentials": map[string]interface{}{
-			"apps": []interface{}{"aaa"},
-		},
-	}
-
-	json.NewEncoder(w).Encode(data)
 }

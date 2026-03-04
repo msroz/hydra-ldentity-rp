@@ -11,6 +11,7 @@ import (
 	"rp/model"
 	"rp/view"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -39,36 +40,48 @@ func NewAuthController(store *sessions.CookieStore, oauth2Conf oauth2.Config, tm
 	}
 }
 
-func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
+type authzParams struct {
+	state         string
+	nonce         string
+	codeChallenge string
+}
+
+func (c *AuthController) prepareAuthzRequest(w http.ResponseWriter, r *http.Request) (*authzParams, error) {
 	state, err := randx.RuneSequence(24, randx.AlphaLower)
 	if err != nil {
-		httputil.HandleError(w, "unable to generate state", http.StatusInternalServerError, err)
-		return
+		return nil, fmt.Errorf("unable to generate state: %w", err)
 	}
 	nonce, err := randx.RuneSequence(24, randx.AlphaLower)
 	if err != nil {
-		httputil.HandleError(w, "unable to generate nonce", http.StatusInternalServerError, err)
-		return
+		return nil, fmt.Errorf("unable to generate nonce: %w", err)
 	}
 
 	reqSession, _ := c.store.Get(r, authZReqSessionName)
-
 	stateStr := string(state)
 	nonceStr := string(nonce)
-
 	reqSession.Values["state"] = stateStr
 	reqSession.Values["nonce"] = nonceStr
+
 	codeVerifier, _ := randx.RuneSequence(64, randx.AlphaLower)
 	converted := sha256.Sum256([]byte(string(codeVerifier)))
 	codeChallenge := base64.RawURLEncoding.EncodeToString(converted[:])
 	reqSession.Values["code_verifier"] = string(codeVerifier)
-
 	reqSession.Save(r, w)
 
-	authZReqWithPromptLoginURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login")
-	authZReqWithPromptRegistrationURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "registration")
-	authZReqWithPromptNoneURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "none")
-	authZReqWithoutPrompt := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "")
+	return &authzParams{state: stateStr, nonce: nonceStr, codeChallenge: codeChallenge}, nil
+}
+
+func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
+	params, err := c.prepareAuthzRequest(w, r)
+	if err != nil {
+		httputil.HandleError(w, err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	authZReqWithPromptLoginURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login")
+	authZReqWithPromptRegistrationURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "registration")
+	authZReqWithPromptNoneURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "none")
+	authZReqWithoutPrompt := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "")
 
 	c.tmplService.RenderTemplate(w, "initiate.html", map[string]interface{}{
 		"AuthZReqWithPromptLoginURL":        authZReqWithPromptLoginURL,
@@ -92,37 +105,20 @@ func (c *AuthController) Reauth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, err := randx.RuneSequence(24, randx.AlphaLower)
+	params, err := c.prepareAuthzRequest(w, r)
 	if err != nil {
-		httputil.HandleError(w, "unable to generate state", http.StatusInternalServerError, err)
-		return
-	}
-	nonce, err := randx.RuneSequence(24, randx.AlphaLower)
-	if err != nil {
-		httputil.HandleError(w, "unable to generate nonce", http.StatusInternalServerError, err)
+		httputil.HandleError(w, err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	reqSession, _ := c.store.Get(r, authZReqSessionName)
-	stateStr := string(state)
-	nonceStr := string(nonce)
-	reqSession.Values["state"] = stateStr
-	reqSession.Values["nonce"] = nonceStr
-
-	codeVerifier, _ := randx.RuneSequence(64, randx.AlphaLower)
-	converted := sha256.Sum256([]byte(string(codeVerifier)))
-	codeChallenge := base64.RawURLEncoding.EncodeToString(converted[:])
-	reqSession.Values["code_verifier"] = string(codeVerifier)
-	reqSession.Save(r, w)
-
-	promptLoginURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login")
-	promptLoginWithLoginHintURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login",
+	promptLoginURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login")
+	promptLoginWithLoginHintURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login",
 		oauth2.SetAuthURLParam("login_hint", user.EmailVerified),
 	)
-	promptLoginWithIDTokenHintURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login",
+	promptLoginWithIDTokenHintURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login",
 		oauth2.SetAuthURLParam("id_token_hint", user.IDToken),
 	)
-	promptLoginWithBothHintsURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login",
+	promptLoginWithBothHintsURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login",
 		oauth2.SetAuthURLParam("login_hint", user.EmailVerified),
 		oauth2.SetAuthURLParam("id_token_hint", user.IDToken),
 	)
@@ -146,31 +142,6 @@ func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChal
 	}
 	opts = append(opts, extraParams...)
 	return conf.AuthCodeURL(state, opts...)
-}
-
-func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) {
-	state := "DUMMY"
-	authZReqWithPromptLoginURL := c.oauth2Conf.AuthCodeURL(
-		state,
-		oauth2.SetAuthURLParam("audience", ""),
-		oauth2.SetAuthURLParam("prompt", "login"),
-		oauth2.SetAuthURLParam("max_age", "0"),
-		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
-	)
-
-	authZReqWithPromptRegistrationURL := c.oauth2Conf.AuthCodeURL(
-		state,
-		oauth2.SetAuthURLParam("audience", ""),
-		oauth2.SetAuthURLParam("prompt", "registration"),
-		oauth2.SetAuthURLParam("max_age", "0"),
-		oauth2.SetAuthURLParam("ui_locales", "ja-JP"),
-	)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"loginURL":        authZReqWithPromptLoginURL,
-		"registrationURL": authZReqWithPromptRegistrationURL,
-	})
 }
 
 func (c *AuthController) Callback(w http.ResponseWriter, r *http.Request) {
@@ -260,11 +231,24 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 
 	loginSession, _ := r.Cookie(loginSessionName)
 	idTokenPayload, _ := json.MarshalIndent(verifiedToken, "", "  ")
+
+	var idTokenHeader string
+	if parts := strings.SplitN(idTokenStr, ".", 3); len(parts) >= 1 {
+		if headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0]); err == nil {
+			var headerMap map[string]interface{}
+			if err := json.Unmarshal(headerJSON, &headerMap); err == nil {
+				pretty, _ := json.MarshalIndent(headerMap, "", "  ")
+				idTokenHeader = string(pretty)
+			}
+		}
+	}
+
 	c.tmplService.RenderTemplate(w, "callback.html", map[string]interface{}{
 		"AccessToken":    tokens.AccessToken,
 		"RefreshToken":   tokens.RefreshToken,
 		"Expiry":         tokens.Expiry.Format(time.RFC1123),
 		"IDToken":        idTokenStr,
+		"IDTokenHeader":  idTokenHeader,
 		"IDTokenPayload": string(idTokenPayload),
 		"LoginSession":   loginSession,
 	})

@@ -37,13 +37,9 @@ func SetupRoutes(store *sessions.CookieStore, oauth2Conf oauth2.Config, tmplServ
 	r.Get("/logout_callback", logoutController.LogoutCallback)
 	r.Post("/backchannel_logout", logoutController.BackchannelLogout)
 
-	// Native app routes
-	r.Get("/native/initiate", authController.InitiateNative)
-
 	// Client routes
 	r.Post("/clients", clientController.SaveClient)
 	r.Get("/.well-known/jwks.json", clientController.GetJWKS)
-	r.Get("/.well-known/apple-app-site-association", clientController.GetAppleAppSiteAssociation)
 
 	return r
 }
