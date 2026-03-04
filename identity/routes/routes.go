@@ -18,7 +18,7 @@ func Setup(r *chi.Mux, store *sessions.CookieStore, hydraAdminURL string) {
 	// Initialize controllers
 	homeController := controllers.NewHomeController(tmplService)
 	loginController := controllers.NewLoginController(store, hydraService, tmplService)
-	consentController := controllers.NewConsentController(hydraService, tmplService)
+	consentController := controllers.NewConsentController(store, hydraService, tmplService)
 	logoutController := controllers.NewLogoutController(hydraService, tmplService)
 	hookController := controllers.NewHookController(hydraService)
 

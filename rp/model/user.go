@@ -5,10 +5,12 @@ import "sync"
 type ID int
 
 type User struct {
-	ID        ID
-	Subject   string // IdPのユーザーID
-	Telephone string
-	IDToken   string
+	ID            ID
+	Subject       string // IdPのユーザーID
+	LoginID       string // ログインID(Email)
+	EmailVerified string // ID Tokenのemail_verified claim
+	Telephone     string
+	IDToken       string
 }
 
 type UserStore struct {
@@ -57,18 +59,6 @@ func (us *UserStore) Find(id ID) (*User, bool) {
 	defer us.Unlock()
 	user, exists := us.users[ID(id)]
 	return user, exists
-}
-
-func (us *UserStore) GetByTelephone(tel string) (*User, bool) {
-	us.Lock()
-	defer us.Unlock()
-	for _, user := range us.users {
-		if user.Telephone == tel {
-			return user, true
-		}
-	}
-
-	return nil, false
 }
 
 func (us *UserStore) Delete(id ID) bool {

@@ -38,7 +38,10 @@
                 <li>No Users Found.</li>
             {{ end }}
             {{ range .Users }}
-                <li><a href="/logout?id={{ .ID }}">Initiate Logout (ID: {{ .ID }})</a></li>
+                <li>
+                    <a href="/logout?id={{ .ID }}">Initiate Logout (ID: {{ .ID }})</a>
+                    | <a href="/reauth?id={{ .ID }}">Reauth (ID: {{ .ID }})</a>
+                </li>
             {{ end }}
         </ul>
 

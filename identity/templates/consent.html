@@ -9,6 +9,9 @@
 <body>
     <div class="card">
         <h1>OP | Consent</h1>
+        {{ if .LoggedInUser }}
+            <div class="session-badge">Logged in: {{ .LoggedInUser.LoginID }} (ID: {{ .LoggedInUser.ID }})</div>
+        {{ end }}
         <form action="{{ .Action }}" method="POST">
             <input type="hidden" name="challenge" value="{{ .Challenge }}">
             {{ .csrfField }}

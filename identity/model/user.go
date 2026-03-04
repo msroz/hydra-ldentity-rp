@@ -1,6 +1,9 @@
 package model
 
-import "sync"
+import (
+	"strconv"
+	"sync"
+)
 
 type ID int
 
@@ -49,6 +52,18 @@ func (us *UserStore) Find(id ID) (*User, bool) {
 	defer us.Unlock()
 	user, exists := us.users[ID(id)]
 	return user, exists
+}
+
+func (us *UserStore) FindBySessionValue(v interface{}) (*User, bool) {
+	s, ok := v.(string)
+	if !ok {
+		return nil, false
+	}
+	uid, err := strconv.Atoi(s)
+	if err != nil {
+		return nil, false
+	}
+	return us.Find(ID(uid))
 }
 
 func (us *UserStore) FindByLoginID(loginID string) (*User, bool) {

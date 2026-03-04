@@ -114,13 +114,14 @@ func (s *HydraService) RejectConsent(ctx context.Context, challenge string) (str
 	return resp.RedirectTo, nil
 }
 
-func (s *HydraService) CreateConsentSession(includeRawUserID bool) *hydra.AcceptOAuth2ConsentRequestSession {
+func (s *HydraService) CreateConsentSession(includeRawUserID bool, loginID string) *hydra.AcceptOAuth2ConsentRequestSession {
 	idToken := map[string]interface{}{
 		"baz":                   "bar",
 		"phone_number":          "08012345678",
 		"phone_number_verified": true,
 		"family_name":           "Doe",
 		"given_name":            "John",
+		"email_verified":        loginID,
 		"ext": map[string]interface{}{
 			"hoge": "fuga",
 			"piyo": []string{"a", "b", "c"},

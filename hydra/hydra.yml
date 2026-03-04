@@ -32,8 +32,8 @@ secrets:
 oidc:
   subject_identifiers:
     supported_types:
-      - pairwise
-      # - public
+      # - pairwise
+      - public
     pairwise:
       salt: youReallyNeedToChangeThis
 

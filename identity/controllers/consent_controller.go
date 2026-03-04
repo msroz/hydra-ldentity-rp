@@ -10,15 +10,18 @@ import (
 	"strconv"
 
 	"github.com/gorilla/csrf"
+	"github.com/gorilla/sessions"
 )
 
 type ConsentController struct {
+	store        *sessions.CookieStore
 	hydraService *model.HydraService
 	tmplService  *view.TemplateService
 }
 
-func NewConsentController(hydraService *model.HydraService, tmplService *view.TemplateService) *ConsentController {
+func NewConsentController(store *sessions.CookieStore, hydraService *model.HydraService, tmplService *view.TemplateService) *ConsentController {
 	return &ConsentController{
+		store:        store,
 		hydraService: hydraService,
 		tmplService:  tmplService,
 	}
@@ -62,6 +65,9 @@ func (c *ConsentController) ConsentForm(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	session, _ := c.store.Get(r, "identity_login_session")
+	currentUser, _ := model.Store.FindBySessionValue(session.Values["user_id"])
+
 	c.tmplService.RenderTemplate(w, "consent.html", map[string]interface{}{
 		"Action":         "/consent",
 		"Challenge":      challenge,
@@ -69,6 +75,7 @@ func (c *ConsentController) ConsentForm(w http.ResponseWriter, r *http.Request) 
 		"Client":         consentRequest.Client,
 		"RequestedScope": consentRequest.RequestedScope,
 		"User":           consentRequest.Subject,
+		"LoggedInUser":   currentUser,
 	})
 }
 
@@ -107,7 +114,7 @@ func (c *ConsentController) Consent(w http.ResponseWriter, r *http.Request) {
 		includeRawUserID = rawUserID.(bool)
 	}
 
-	session := c.hydraService.CreateConsentSession(includeRawUserID)
+	session := c.hydraService.CreateConsentSession(includeRawUserID, consentRequest.GetSubject())
 	remember, _ := strconv.ParseBool(r.FormValue("remember"))
 
 	redirectTo, err := c.hydraService.AcceptConsentWithSession(ctx, challenge, grantScope, consentRequest.RequestedAccessTokenAudience, session, remember)

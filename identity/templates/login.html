@@ -9,6 +9,9 @@
 <body>
     <div class="card">
         <h1>OP | Login{{ if .ViaRegister }} (Register){{ end }}</h1>
+        {{ if .LoggedInUser }}
+            <div class="session-badge">Logged in: {{ .LoggedInUser.LoginID }} (ID: {{ .LoggedInUser.ID }})</div>
+        {{ end }}
         {{ if .Error }}
             <div class="error-msg">{{ .Error }}</div>
         {{ end }}
@@ -16,7 +19,7 @@
             {{ .csrfField }}
             <input type="hidden" name="challenge" value="{{ .Challenge }}">
             <label for="login-id">Login ID</label>
-            <input type="input" id="login-id" name="login_id" value="{{ if .Hint }}{{ .Hint }}{{ else }}login-id@example.com{{ end }}" placeholder="login-id@example.com">
+            <input type="input" id="login-id" name="login_id" value="{{ if .Hint }}{{ .Hint }}{{ else }}login-id@example.com{{ end }}" placeholder="login-id@example.com"{{ if .Hint }} readonly{{ end }}>
             <div class="hint">hint: login-id@example.com</div>
             <div class="btn-group">
                 <input type="submit" id="accept" name="submit" value="Get code" class="btn btn-primary">

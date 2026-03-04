@@ -10,6 +10,7 @@ import (
 	"rp/httputil"
 	"rp/model"
 	"rp/view"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -77,23 +78,74 @@ func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChallenge, prompt string) string {
-	if prompt == "" {
-		return conf.AuthCodeURL(
-			state,
-			oauth2.SetAuthURLParam("nonce", nonce),
-			oauth2.SetAuthURLParam("prompt", prompt),
-			oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-		)
+func (c *AuthController) Reauth(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		httputil.HandleError(w, "invalid id parameter", http.StatusBadRequest, err)
+		return
 	}
-	return conf.AuthCodeURL(
-		state,
+
+	user, exists := model.Store.Find(model.ID(id))
+	if !exists {
+		httputil.HandleError(w, "user not found", http.StatusNotFound, nil)
+		return
+	}
+
+	state, err := randx.RuneSequence(24, randx.AlphaLower)
+	if err != nil {
+		httputil.HandleError(w, "unable to generate state", http.StatusInternalServerError, err)
+		return
+	}
+	nonce, err := randx.RuneSequence(24, randx.AlphaLower)
+	if err != nil {
+		httputil.HandleError(w, "unable to generate nonce", http.StatusInternalServerError, err)
+		return
+	}
+
+	reqSession, _ := c.store.Get(r, authZReqSessionName)
+	stateStr := string(state)
+	nonceStr := string(nonce)
+	reqSession.Values["state"] = stateStr
+	reqSession.Values["nonce"] = nonceStr
+
+	codeVerifier, _ := randx.RuneSequence(64, randx.AlphaLower)
+	converted := sha256.Sum256([]byte(string(codeVerifier)))
+	codeChallenge := base64.RawURLEncoding.EncodeToString(converted[:])
+	reqSession.Values["code_verifier"] = string(codeVerifier)
+	reqSession.Save(r, w)
+
+	promptLoginURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login")
+	promptLoginWithLoginHintURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login",
+		oauth2.SetAuthURLParam("login_hint", user.EmailVerified),
+	)
+	promptLoginWithIDTokenHintURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login",
+		oauth2.SetAuthURLParam("id_token_hint", user.IDToken),
+	)
+	promptLoginWithBothHintsURL := c.buildAuthURL(c.oauth2Conf, stateStr, nonceStr, codeChallenge, "login",
+		oauth2.SetAuthURLParam("login_hint", user.EmailVerified),
+		oauth2.SetAuthURLParam("id_token_hint", user.IDToken),
+	)
+
+	c.tmplService.RenderTemplate(w, "reauth.html", map[string]interface{}{
+		"UserID":                        user.ID,
+		"Subject":                       user.Subject,
+		"PromptLoginURL":                promptLoginURL,
+		"PromptLoginWithLoginHintURL":   promptLoginWithLoginHintURL,
+		"PromptLoginWithIDTokenHintURL": promptLoginWithIDTokenHintURL,
+		"PromptLoginWithBothHintsURL":   promptLoginWithBothHintsURL,
+	})
+}
+
+func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChallenge, prompt string, extraParams ...oauth2.AuthCodeOption) string {
+	opts := []oauth2.AuthCodeOption{
 		oauth2.SetAuthURLParam("nonce", nonce),
 		oauth2.SetAuthURLParam("prompt", prompt),
 		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-	)
+	}
+	opts = append(opts, extraParams...)
+	return conf.AuthCodeURL(state, opts...)
 }
 
 func (c *AuthController) InitiateNative(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +247,11 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 	reqSession.Save(r, w)
 
 	sub := verifiedToken.Subject()
-	user := model.Store.FindOrCreateBySubject(&model.User{Subject: sub, IDToken: idTokenStr})
+	var emailVerified string
+	if ev, ok := verifiedToken.Get("email_verified"); ok {
+		emailVerified = fmt.Sprintf("%v", ev)
+	}
+	user := model.Store.FindOrCreateBySubject(&model.User{Subject: sub, IDToken: idTokenStr, EmailVerified: emailVerified})
 
 	if err := c.createLoginSession(w, r, user); err != nil {
 		httputil.HandleError(w, "failed to save session", http.StatusInternalServerError, err)

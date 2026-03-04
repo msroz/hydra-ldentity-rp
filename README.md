@@ -77,7 +77,7 @@ $ echo $code_client | jq .
   "scope": "openid offline",
   "skip_consent": false,
   "skip_logout_consent": false,
-  "subject_type": "pairwise",
+  "subject_type": "public",
   "token_endpoint_auth_method": "private_key_jwt",
   "tos_uri": "",
   "updated_at": "2025-03-13T01:12:16.789976Z",
