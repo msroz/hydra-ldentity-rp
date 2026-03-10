@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RP | Authorize</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="card">
+        <h1>RP | Authorization Request</h1>
+
+        {{ if .UserID }}
+        <p>Reauth for User ID: <code>{{ .UserID }}</code> / Subject: <code>{{ .Subject }}</code></p>
+        {{ end }}
+
+        <form action="/authorize" method="POST">
+            <label for="state">state</label>
+            <input type="text" id="state" name="state" value="{{ .State }}" readonly>
+
+            <label for="nonce">nonce</label>
+            <input type="text" id="nonce" name="nonce" value="{{ .Nonce }}" readonly>
+
+            <label for="code_challenge">code_challenge</label>
+            <input type="text" id="code_challenge" name="code_challenge" value="{{ .CodeChallenge }}" readonly>
+
+            <label for="scope">scope</label>
+            <input type="text" id="scope" name="scope" value="{{ .Scope }}">
+
+            <label for="prompt">prompt</label>
+            <select id="prompt" name="prompt">
+                <option value=""{{ if eq .Prompt "" }} selected{{ end }}>(none)</option>
+                <option value="login"{{ if eq .Prompt "login" }} selected{{ end }}>login</option>
+                <option value="consent"{{ if eq .Prompt "consent" }} selected{{ end }}>consent</option>
+                <option value="registration"{{ if eq .Prompt "registration" }} selected{{ end }}>registration</option>
+                <option value="none"{{ if eq .Prompt "none" }} selected{{ end }}>none</option>
+            </select>
+
+            <label for="login_hint">login_hint</label>
+            <input type="text" id="login_hint" name="login_hint" value="{{ .LoginHint }}">
+
+            <label for="id_token_hint">id_token_hint</label>
+            <textarea id="id_token_hint" name="id_token_hint" rows="3">{{ .IDTokenHint }}</textarea>
+
+            <label for="max_age">max_age</label>
+            <input type="text" id="max_age" name="max_age" value="{{ .MaxAge }}" placeholder="seconds">
+
+            <div class="btn-group">
+                <input type="submit" value="Authorize" class="btn btn-primary">
+            </div>
+        </form>
+    </div>
+</body>
+</html>

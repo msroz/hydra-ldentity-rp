@@ -71,66 +71,71 @@ func (c *AuthController) prepareAuthzRequest(w http.ResponseWriter, r *http.Requ
 	return &authzParams{state: stateStr, nonce: nonceStr, codeChallenge: codeChallenge}, nil
 }
 
-func (c *AuthController) Initiate(w http.ResponseWriter, r *http.Request) {
+func (c *AuthController) AuthorizeForm(w http.ResponseWriter, r *http.Request) {
 	params, err := c.prepareAuthzRequest(w, r)
 	if err != nil {
 		httputil.HandleError(w, err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	authZReqWithPromptLoginURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login")
-	authZReqWithPromptRegistrationURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "registration")
-	authZReqWithPromptNoneURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "none")
-	authZReqWithoutPrompt := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "")
+	data := map[string]interface{}{
+		"Scope":         strings.Join(c.oauth2Conf.Scopes, " "),
+		"Prompt":        "",
+		"LoginHint":     "",
+		"IDTokenHint":   "",
+		"MaxAge":        "",
+		"UserID":        "",
+		"Subject":       "",
+		"State":         params.state,
+		"Nonce":         params.nonce,
+		"CodeChallenge": params.codeChallenge,
+	}
 
-	c.tmplService.RenderTemplate(w, "initiate.html", map[string]interface{}{
-		"AuthZReqWithPromptLoginURL":        authZReqWithPromptLoginURL,
-		"AuthZReqWithPromptRegistrationURL": authZReqWithPromptRegistrationURL,
-		"AuthZReqWithPromptNoneURL":         authZReqWithPromptNoneURL,
-		"AuthZReqWithoutPrompt":             authZReqWithoutPrompt,
-	})
+	if idStr := r.URL.Query().Get("user_id"); idStr != "" {
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			httputil.HandleError(w, "invalid user_id parameter", http.StatusBadRequest, err)
+			return
+		}
+		user, exists := model.Store.Find(model.ID(id))
+		if !exists {
+			httputil.HandleError(w, "user not found", http.StatusNotFound, nil)
+			return
+		}
+		data["Prompt"] = "login"
+		data["LoginHint"] = user.EmailVerified
+		data["IDTokenHint"] = user.IDToken
+		data["UserID"] = user.ID
+		data["Subject"] = user.Subject
+	}
+
+	c.tmplService.RenderTemplate(w, "authorize.html", data)
 }
 
-func (c *AuthController) Reauth(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		httputil.HandleError(w, "invalid id parameter", http.StatusBadRequest, err)
-		return
+func (c *AuthController) Authorize(w http.ResponseWriter, r *http.Request) {
+	state := r.FormValue("state")
+	nonce := r.FormValue("nonce")
+	codeChallenge := r.FormValue("code_challenge")
+
+	conf := c.oauth2Conf
+	if scope := r.FormValue("scope"); scope != "" {
+		conf.Scopes = strings.Split(scope, " ")
 	}
 
-	user, exists := model.Store.Find(model.ID(id))
-	if !exists {
-		httputil.HandleError(w, "user not found", http.StatusNotFound, nil)
-		return
+	prompt := r.FormValue("prompt")
+	var extraParams []oauth2.AuthCodeOption
+	if loginHint := r.FormValue("login_hint"); loginHint != "" {
+		extraParams = append(extraParams, oauth2.SetAuthURLParam("login_hint", loginHint))
+	}
+	if idTokenHint := r.FormValue("id_token_hint"); idTokenHint != "" {
+		extraParams = append(extraParams, oauth2.SetAuthURLParam("id_token_hint", idTokenHint))
+	}
+	if maxAge := r.FormValue("max_age"); maxAge != "" {
+		extraParams = append(extraParams, oauth2.SetAuthURLParam("max_age", maxAge))
 	}
 
-	params, err := c.prepareAuthzRequest(w, r)
-	if err != nil {
-		httputil.HandleError(w, err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	promptLoginURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login")
-	promptLoginWithLoginHintURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login",
-		oauth2.SetAuthURLParam("login_hint", user.EmailVerified),
-	)
-	promptLoginWithIDTokenHintURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login",
-		oauth2.SetAuthURLParam("id_token_hint", user.IDToken),
-	)
-	promptLoginWithBothHintsURL := c.buildAuthURL(c.oauth2Conf, params.state, params.nonce, params.codeChallenge, "login",
-		oauth2.SetAuthURLParam("login_hint", user.EmailVerified),
-		oauth2.SetAuthURLParam("id_token_hint", user.IDToken),
-	)
-
-	c.tmplService.RenderTemplate(w, "reauth.html", map[string]interface{}{
-		"UserID":                        user.ID,
-		"Subject":                       user.Subject,
-		"PromptLoginURL":                promptLoginURL,
-		"PromptLoginWithLoginHintURL":   promptLoginWithLoginHintURL,
-		"PromptLoginWithIDTokenHintURL": promptLoginWithIDTokenHintURL,
-		"PromptLoginWithBothHintsURL":   promptLoginWithBothHintsURL,
-	})
+	authURL := c.buildAuthURL(conf, state, nonce, codeChallenge, prompt, extraParams...)
+	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 func (c *AuthController) buildAuthURL(conf oauth2.Config, state, nonce, codeChallenge, prompt string, extraParams ...oauth2.AuthCodeOption) string {

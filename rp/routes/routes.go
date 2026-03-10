@@ -27,8 +27,8 @@ func SetupRoutes(store *sessions.CookieStore, oauth2Conf oauth2.Config, tmplServ
 	r.Get("/", homeController.Home)
 
 	// Auth routes
-	r.Get("/initiate", authController.Initiate)
-	r.Get("/reauth", authController.Reauth)
+	r.Get("/authorize", authController.AuthorizeForm)
+	r.Post("/authorize", authController.Authorize)
 	r.Get("/callback", authController.Callback)
 	r.Post("/token_exchange", authController.TokenExchange)
 

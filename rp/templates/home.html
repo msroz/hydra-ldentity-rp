@@ -29,7 +29,7 @@
 
         <h2>Initiate Request</h2>
         <ul class="link-list">
-            <li><a href="/initiate">Move to Initiate Authorize Request Page</a></li>
+            <li><a href="/authorize">Authorize Request</a></li>
         </ul>
 
         <h2>User Store</h2>
@@ -40,7 +40,7 @@
             {{ range .Users }}
                 <li>
                     <a href="/logout?id={{ .ID }}">Initiate Logout (ID: {{ .ID }})</a>
-                    | <a href="/reauth?id={{ .ID }}">Reauth (ID: {{ .ID }})</a>
+                    | <a href="/authorize?user_id={{ .ID }}">Reauth (ID: {{ .ID }})</a>
                 </li>
             {{ end }}
         </ul>

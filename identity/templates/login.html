@@ -19,7 +19,7 @@
             {{ .csrfField }}
             <input type="hidden" name="challenge" value="{{ .Challenge }}">
             <label for="login-id">Login ID</label>
-            <input type="input" id="login-id" name="login_id" value="{{ if .Hint }}{{ .Hint }}{{ else }}login-id@example.com{{ end }}" placeholder="login-id@example.com"{{ if .Hint }} readonly{{ end }}>
+            <input type="input" id="login-id" name="login_id" value="{{ if .Hint }}{{ .Hint }}{{ end }}" placeholder="login-id@example.com"{{ if .Hint }} readonly{{ end }}>
             <div class="hint">hint: login-id@example.com</div>
             <div class="btn-group">
                 <input type="submit" id="accept" name="submit" value="Get code" class="btn btn-primary">

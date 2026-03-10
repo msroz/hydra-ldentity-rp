@@ -88,6 +88,7 @@ func (c *LoginController) LoginForm(w http.ResponseWriter, r *http.Request) {
 	if loginReq.OidcContext != nil && loginReq.OidcContext.LoginHint != nil {
 		hint = *loginReq.OidcContext.LoginHint
 	}
+	slog.Debug("LoginForm", "hint", hint)
 
 	c.tmplService.RenderTemplate(w, "login.html", map[string]interface{}{
 		"Challenge":      challenge,
@@ -95,7 +96,7 @@ func (c *LoginController) LoginForm(w http.ResponseWriter, r *http.Request) {
 		"Action":         action.String(),
 		"Hint":           hint,
 		"ViaRegister":    viaRegister,
-		"LoggedInUser": currentUser,
+		"LoggedInUser":   currentUser,
 	})
 }
 
