@@ -248,6 +248,15 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var introspectionResult string
+	introspection, err := auth.IntrospectAccessToken(tokens.AccessToken)
+	if err != nil {
+		introspectionResult = fmt.Sprintf("Introspection error: %v", err)
+	} else {
+		pretty, _ := json.MarshalIndent(introspection, "", "  ")
+		introspectionResult = string(pretty)
+	}
+
 	c.tmplService.RenderTemplate(w, "callback.html", map[string]interface{}{
 		"AccessToken":    tokens.AccessToken,
 		"RefreshToken":   tokens.RefreshToken,
@@ -255,6 +264,7 @@ func (c *AuthController) TokenExchange(w http.ResponseWriter, r *http.Request) {
 		"IDToken":        idTokenStr,
 		"IDTokenHeader":  idTokenHeader,
 		"IDTokenPayload": string(idTokenPayload),
+		"Introspection":  introspectionResult,
 		"LoginSession":   loginSession,
 	})
 }
