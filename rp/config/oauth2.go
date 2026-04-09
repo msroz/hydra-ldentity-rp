@@ -13,6 +13,7 @@ var (
 	port             = env.Getenv("PORT", "7777")
 	hydraAuthZReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_AUTHZ_REQUEST_HOST", "127.0.0.1:8888")} // from RP UA to Hydra
 	hydraTokenReqURL = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_TOKEN_REQUEST_HOST", "hydra:8888")}     // from RP Server to Hydra
+	hydraAdminURL    = url.URL{Scheme: "http", Host: env.Getenv("HYDRA_ADMIN_URL", "hydra:9999")}              // Hydra Admin API
 	redirectURL      = env.Getenv("REDIRECT_URL", fmt.Sprintf("http://127.0.0.1:%s/callback", port))
 	logoutCallbackURL  = env.Getenv("LOGOUT_CALLBACK_URL", fmt.Sprintf("http://127.0.0.1:%s/logout_callback", port))
 
@@ -56,4 +57,9 @@ func GetHydraJWKSetURL() string {
 // GetLogoutCallbackURL returns the post-logout redirect URI
 func GetLogoutCallbackURL() string {
 	return logoutCallbackURL
+}
+
+// GetHydraAdminIntrospectURL returns the Hydra Admin introspection endpoint URL
+func GetHydraAdminIntrospectURL() string {
+	return urlx.AppendPaths(&hydraAdminURL, "/admin/oauth2/introspect").String()
 }

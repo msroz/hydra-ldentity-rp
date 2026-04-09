@@ -65,6 +65,7 @@ services:
       - APPLE_APP_ID # for apple-app-site-association
       - HYDRA_AUTHZ_REQUEST_HOST=
       - HYDRA_TOKEN_REQUEST_HOST=
+      - HYDRA_ADMIN_URL=hydra:9999
       - REDIRECT_ENDPOINT_URL= # OAuth2.0 redirect endpoint
     ports:
       - "7777:7777"
